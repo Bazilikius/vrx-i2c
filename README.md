@@ -61,6 +61,7 @@ python3 vtx_vrx_gui.py
 - **Satellite Map Tab**:
     - **Hybrid Map**: View a satellite map with city names and road labels (Google Hybrid).
     - **Marker Placement**: Right-click on the map or enter coordinates to set the system location marker.
+    - **Range Circle**: A red 15km radius circle is automatically drawn around the marker for distance reference.
     - **Quick Favorites**: Access your favorite frequencies directly from the map sidebar.
 - **Favorites System**:
     - **Add Favorites**: Right-click any frequency button in the Hardware Controls tab to add it to your favorites.

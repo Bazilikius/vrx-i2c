@@ -7,6 +7,7 @@ import time
 import threading
 import json
 import os
+import math
 from vtx_table import BAND_TABLE, VTX_12G_TABLE
 import tkintermapview
 
@@ -16,6 +17,7 @@ class VTXControllerGUI:
         self.root.title("VTX/VRX Pro Controller with Map")
         self.ser = None
         self.marker = None
+        self.range_circle = None
         self.favorites_file = "favorites.json"
         self.favorites = self.load_favorites()
         self.fav_vtx_buttons = []
@@ -186,11 +188,38 @@ class VTXControllerGUI:
             lat = float(self.lat_var.get())
             lon = float(self.lon_var.get())
             if self.marker: self.marker.delete()
+            if self.range_circle: self.range_circle.delete()
+
             self.marker = self.map_widget.set_marker(lat, lon, text="System Point")
+            self.draw_range_circle(lat, lon, 15) # 15km
+
             self.map_widget.set_position(lat, lon)
             self.log(f"Map: Position set to {lat}, {lon}")
         except ValueError:
             messagebox.showwarning("Warning", "Invalid coordinates.")
+
+    def draw_range_circle(self, lat, lon, radius_km):
+        # Calculate points for a circle on a sphere
+        path = []
+        points = 64 # Number of segments
+        R = 6371.0 # Earth radius in km
+
+        lat_rad = math.radians(lat)
+        lon_rad = math.radians(lon)
+        d_r = radius_km / R
+
+        for i in range(points + 1):
+            bearing = math.radians(i * (360 / points))
+
+            point_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
+                                 math.cos(lat_rad) * math.sin(d_r) * math.cos(bearing))
+
+            point_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(d_r) * math.cos(lat_rad),
+                                             math.cos(d_r) - math.sin(lat_rad) * math.sin(point_lat))
+
+            path.append((math.degrees(point_lat), math.degrees(point_lon)))
+
+        self.range_circle = self.map_widget.set_path(path, color="red", width=2, name="range_circle")
 
     def load_favorites(self):
         if os.path.exists(self.favorites_file):
