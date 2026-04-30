@@ -79,19 +79,23 @@ class VTXControllerGUI:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # Organize bands into two major columns
+        # Organize bands into three major columns
         bands = list(BAND_TABLE.keys())
         num_bands = len(bands)
-        half = (num_bands + 1) // 2
+        # Calculate items per column
+        col_count = 3
+        per_col = (num_bands + col_count - 1) // col_count
 
-        # We'll create two sub-frames within the scroll_frame
-        col_left = ttk.Frame(scroll_frame)
-        col_left.grid(row=0, column=0, sticky=tk.N, padx=10)
-        col_right = ttk.Frame(scroll_frame)
-        col_right.grid(row=0, column=1, sticky=tk.N, padx=10)
+        # We'll create three sub-frames within the scroll_frame
+        columns = []
+        for i in range(col_count):
+            col = ttk.Frame(scroll_frame)
+            col.grid(row=0, column=i, sticky=tk.N, padx=10)
+            columns.append(col)
 
         for idx, band in enumerate(bands):
-            parent = col_left if idx < half else col_right
+            col_idx = idx // per_col
+            parent = columns[min(col_idx, col_count - 1)]
 
             band_lf = ttk.LabelFrame(parent, text=band, padding="2")
             band_lf.pack(fill=tk.X, pady=5)
