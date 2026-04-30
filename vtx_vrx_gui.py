@@ -213,8 +213,8 @@ class VTXControllerGUI:
 
         # Radii to draw
         radii = [5, 10, 15]
-        # Angles to draw (Azimuth lines)
-        angles = [0, 45, 90, 135, 180, 225, 270, 315]
+        # Angles to draw (Azimuth lines) - 30 degree intervals as per user image
+        angles = list(range(0, 360, 30))
 
         # Draw Circles
         for r_km in radii:
@@ -231,31 +231,47 @@ class VTXControllerGUI:
             circle = self.map_widget.set_path(path, color="red", width=1 if r_km < 15 else 2)
             self.range_graphics.append(circle)
 
-        # Draw Radial Lines and Labels at intersections
-        max_r = 15 / R
+        # Draw Radial Lines and Labels (30° intervals)
+        # Position labels slightly outside 15km (e.g., 16km)
+        label_r = 16 / R
+        line_max_r = 15 / R
+
         for angle in angles:
             bearing = math.radians(angle)
+
             # End point of radial line at 15km
-            end_lat = math.asin(math.sin(lat_rad) * math.cos(max_r) +
-                               math.cos(lat_rad) * math.sin(max_r) * math.cos(bearing))
-            end_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(max_r) * math.cos(lat_rad),
-                                           math.cos(max_r) - math.sin(lat_rad) * math.sin(end_lat))
+            end_lat = math.asin(math.sin(lat_rad) * math.cos(line_max_r) +
+                               math.cos(lat_rad) * math.sin(line_max_r) * math.cos(bearing))
+            end_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(line_max_r) * math.cos(lat_rad),
+                                           math.cos(line_max_r) - math.sin(lat_rad) * math.sin(end_lat))
 
             line = self.map_widget.set_path([(lat, lon), (math.degrees(end_lat), math.degrees(end_lon))],
                                            color="red", width=1)
             self.range_graphics.append(line)
 
-            # Labels at each circle intersection
-            for r_km in radii:
-                d_r = r_km / R
-                l_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
-                                 math.cos(lat_rad) * math.sin(d_r) * math.cos(bearing))
-                l_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(d_r) * math.cos(lat_rad),
-                                            math.cos(d_r) - math.sin(lat_rad) * math.sin(l_lat))
+            # Labels at the edge (16km) - using small marker icon size or color to make it "invisible"
+            l_lat = math.asin(math.sin(lat_rad) * math.cos(label_r) +
+                             math.cos(lat_rad) * math.sin(label_r) * math.cos(bearing))
+            l_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(label_r) * math.cos(lat_rad),
+                                        math.cos(label_r) - math.sin(lat_rad) * math.sin(l_lat))
 
-                lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
-                                                text=f"{angle}°\n{r_km}km", font=("Helvetica", 7))
-                self.azimuth_labels.append(lbl)
+            # Placing text-only label (marker with no image and zero size if possible)
+            lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
+                                            text=f"{angle}°", font=("Helvetica", 10, "bold"),
+                                            marker_color_circle="white", marker_color_outside="white")
+            self.azimuth_labels.append(lbl)
+
+        # Distance labels along 0° (North) line
+        for r_km in radii:
+            d_r = r_km / R
+            l_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
+                             math.cos(lat_rad) * math.sin(d_r) * math.cos(0))
+            l_lon = lon_rad + math.atan2(math.sin(0) * math.sin(d_r) * math.cos(lat_rad),
+                                        math.cos(d_r) - math.sin(lat_rad) * math.sin(l_lat))
+            lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
+                                            text=f"{r_km}km", font=("Helvetica", 8, "bold"),
+                                            marker_color_circle="white", marker_color_outside="white")
+            self.azimuth_labels.append(lbl)
 
     def load_favorites(self):
         if os.path.exists(self.favorites_file):
