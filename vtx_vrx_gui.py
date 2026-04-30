@@ -18,6 +18,7 @@ class VTXControllerGUI:
         self.ser = None
         self.marker = None
         self.range_circle = None
+        self.azimuth_labels = []
         self.favorites_file = "favorites.json"
         self.favorites = self.load_favorites()
         self.fav_vtx_buttons = []
@@ -189,6 +190,8 @@ class VTXControllerGUI:
             lon = float(self.lon_var.get())
             if self.marker: self.marker.delete()
             if self.range_circle: self.range_circle.delete()
+            for l in self.azimuth_labels: l.delete()
+            self.azimuth_labels = []
 
             self.marker = self.map_widget.set_marker(lat, lon, text="System Point")
             self.draw_range_circle(lat, lon, 15) # 15km
@@ -220,6 +223,18 @@ class VTXControllerGUI:
             path.append((math.degrees(point_lat), math.degrees(point_lon)))
 
         self.range_circle = self.map_widget.set_path(path, color="red", width=2, name="range_circle")
+
+        # Add degree labels
+        for degree in [0, 45, 90, 135, 180, 225, 270, 315]:
+            bearing = math.radians(degree)
+            l_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
+                             math.cos(lat_rad) * math.sin(d_r) * math.cos(bearing))
+            l_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(d_r) * math.cos(lat_rad),
+                                        math.cos(d_r) - math.sin(lat_rad) * math.sin(l_lat))
+
+            lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
+                                            text=f"{degree}°", font=("Helvetica", 8))
+            self.azimuth_labels.append(lbl)
 
     def load_favorites(self):
         if os.path.exists(self.favorites_file):
