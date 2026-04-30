@@ -5,6 +5,8 @@ import serial
 import serial.tools.list_ports
 import time
 import threading
+import json
+import os
 from vtx_table import BAND_TABLE, VTX_12G_TABLE
 import tkintermapview
 
@@ -14,6 +16,10 @@ class VTXControllerGUI:
         self.root.title("VTX/VRX Pro Controller with Map")
         self.ser = None
         self.marker = None
+        self.favorites_file = "favorites.json"
+        self.favorites = self.load_favorites()
+        self.fav_vtx_buttons = []
+        self.fav_vrx_buttons = []
 
         # Main Layout
         root.columnconfigure(0, weight=1)
@@ -58,6 +64,7 @@ class VTXControllerGUI:
             btn = ttk.Button(vtx_freq_lf, text=f"{freq} MHz",
                              command=lambda f=freq: self.send_command(f"V {f}"))
             btn.pack(fill=tk.X, pady=1)
+            btn.bind("<Button-3>", lambda e, f=freq: self.add_to_favorites("vtx", f))
 
         vtx_pwr_lf = ttk.LabelFrame(vtx_side_frame, text="VTX Power", padding="5")
         vtx_pwr_lf.pack(fill=tk.X, padx=5, pady=5)
@@ -103,12 +110,29 @@ class VTXControllerGUI:
                                         font=('Helvetica', 8), bg="#f0f0f0",
                                         command=lambda f=freq: self.send_command(f"R {f}"))
                         btn.grid(row=k // 4, column=k % 4, padx=1, pady=1)
+                        btn.bind("<Button-3>", lambda e, f=freq: self.add_to_favorites("vrx", f))
 
         # --- Tab 2: Map ---
         map_tab = ttk.Frame(self.notebook)
         self.notebook.add(map_tab, text="Satellite Map")
 
-        map_controls = ttk.Frame(map_tab, padding="5")
+        # Map Sidebar for Favorites
+        self.map_sidebar = ttk.Frame(map_tab, padding="5", width=150)
+        self.map_sidebar.pack(side=tk.LEFT, fill=tk.Y)
+
+        ttk.Label(self.map_sidebar, text="Favorites", font=('Helvetica', 10, 'bold')).pack(pady=5)
+
+        self.fav_vtx_lf = ttk.LabelFrame(self.map_sidebar, text="VTX", padding="2")
+        self.fav_vtx_lf.pack(fill=tk.X, pady=5)
+        self.fav_vrx_lf = ttk.LabelFrame(self.map_sidebar, text="VRX", padding="2")
+        self.fav_vrx_lf.pack(fill=tk.X, pady=5)
+
+        ttk.Button(self.map_sidebar, text="Clear Favs", command=self.clear_favorites).pack(side=tk.BOTTOM, fill=tk.X)
+
+        map_main_frame = ttk.Frame(map_tab)
+        map_main_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        map_controls = ttk.Frame(map_main_frame, padding="5")
         map_controls.pack(fill=tk.X)
 
         ttk.Label(map_controls, text="Lat:").pack(side=tk.LEFT)
@@ -123,12 +147,15 @@ class VTXControllerGUI:
         ttk.Label(map_controls, text="(Right-click map to set position)", foreground="gray").pack(side=tk.LEFT, padx=10)
 
         # Map View
-        self.map_widget = tkintermapview.TkinterMapView(map_tab, corner_radius=0)
+        self.map_widget = tkintermapview.TkinterMapView(map_main_frame, corner_radius=0)
         self.map_widget.pack(fill="both", expand=True)
-        self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", max_zoom=22)
+        # Use Google Hybrid (y) for satellite + labels (cities, roads)
+        self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", max_zoom=22)
         self.map_widget.set_position(50.4501, 30.5234) # Default to Kiev
         self.map_widget.set_zoom(15)
         self.map_widget.add_right_click_menu_command(label="Set System Location", command=self.add_marker_event, pass_coords=True)
+
+        self.update_favorites_display()
 
         # 3. Console/Advanced (Bottom)
         bottom_frame = ttk.Frame(root, padding="5")
@@ -164,6 +191,50 @@ class VTXControllerGUI:
             self.log(f"Map: Position set to {lat}, {lon}")
         except ValueError:
             messagebox.showwarning("Warning", "Invalid coordinates.")
+
+    def load_favorites(self):
+        if os.path.exists(self.favorites_file):
+            try:
+                with open(self.favorites_file, 'r') as f:
+                    return json.load(f)
+            except:
+                return {"vtx": [], "vrx": []}
+        return {"vtx": [], "vrx": []}
+
+    def save_favorites(self):
+        with open(self.favorites_file, 'w') as f:
+            json.dump(self.favorites, f)
+        self.update_favorites_display()
+
+    def update_favorites_display(self):
+        for btn in self.fav_vtx_buttons: btn.destroy()
+        for btn in self.fav_vrx_buttons: btn.destroy()
+        self.fav_vtx_buttons = []
+        self.fav_vrx_buttons = []
+
+        for freq in self.favorites["vtx"]:
+            btn = ttk.Button(self.fav_vtx_lf, text=f"{freq}", width=10,
+                             command=lambda f=freq: self.send_command(f"V {f}"))
+            btn.pack(pady=1)
+            self.fav_vtx_buttons.append(btn)
+
+        for freq in self.favorites["vrx"]:
+            btn = ttk.Button(self.fav_vrx_lf, text=f"{freq}", width=10,
+                             command=lambda f=freq: self.send_command(f"R {f}"))
+            btn.pack(pady=1)
+            self.fav_vrx_buttons.append(btn)
+
+    def clear_favorites(self):
+        if messagebox.askyesno("Confirm", "Clear all favorites?"):
+            self.favorites = {"vtx": [], "vrx": []}
+            self.save_favorites()
+
+    def add_to_favorites(self, type, freq):
+        if freq not in self.favorites[type]:
+            self.favorites[type].append(freq)
+            self.favorites[type].sort()
+            self.save_favorites()
+            self.log(f"Added {freq} MHz to {type.upper()} favorites")
 
     def log(self, message):
         self.log_text.insert(tk.END, message + "\n")

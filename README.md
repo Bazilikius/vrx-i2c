@@ -59,8 +59,12 @@ python3 vtx_vrx_gui.py
     - **Power Column**: Buttons for selecting VTX output power (25mW to 1600mW).
     - **VRX Grid**: A scrollable list of all bands and channels. Each button shows the Band, Channel, and Frequency.
 - **Satellite Map Tab**:
-    - **Map Integration**: View a satellite map using Google Tiles.
+    - **Hybrid Map**: View a satellite map with city names and road labels (Google Hybrid).
     - **Marker Placement**: Right-click on the map or enter coordinates to set the system location marker.
+    - **Quick Favorites**: Access your favorite frequencies directly from the map sidebar.
+- **Favorites System**:
+    - **Add Favorites**: Right-click any frequency button in the Hardware Controls tab to add it to your favorites.
+    - **Persistence**: Favorites are saved to `favorites.json` and persist across restarts.
 
 #### Arguments:
 - `--port`: The serial port of your ESP32 (e.g., `COM3` on Windows, `/dev/ttyUSB0` on Linux).
