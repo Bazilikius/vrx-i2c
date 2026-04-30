@@ -3,12 +3,15 @@ import argparse
 import serial
 import time
 import sys
+from vtx_table import BAND_TABLE
 
 def main():
     parser = argparse.ArgumentParser(description='Control VTX and VRX via ESP32')
     parser.add_argument('--port', required=True, help='Serial port of the ESP32 (e.g., /dev/ttyUSB0 or COM3)')
     parser.add_argument('--baud', type=int, default=115200, help='Baud rate (default: 115200)')
     parser.add_argument('--freq', type=int, help='Frequency in MHz to set on both VTX and VRX')
+    parser.add_argument('--band', help='Band name (e.g., "Band A", "Band R")')
+    parser.add_argument('--chan', type=int, help='Channel number (1-8)')
     parser.add_argument('--power', type=int, help='VTX power in mW')
     parser.add_argument('--addr', help='VRX I2C address in hex (e.g., 54)')
     parser.add_argument('--sda', type=int, help='I2C SDA pin')
@@ -44,9 +47,20 @@ def main():
             while ser.in_waiting:
                 print(ser.readline().decode().strip())
 
-        if args.freq:
-            ser.write(f"F {args.freq}\n".encode())
-            print(f"Sent: Set Frequency to {args.freq} MHz")
+        freq = args.freq
+        if args.band and args.chan:
+            if args.band in BAND_TABLE:
+                if 1 <= args.chan <= 8:
+                    freq = BAND_TABLE[args.band][args.chan - 1]
+                    print(f"Resolved {args.band} CH{args.chan} to {freq} MHz")
+                else:
+                    print("Error: Channel must be between 1 and 8")
+            else:
+                print(f"Error: Unknown Band '{args.band}'")
+
+        if freq:
+            ser.write(f"F {freq}\n".encode())
+            print(f"Sent: Set Frequency to {freq} MHz")
             time.sleep(0.1)
             while ser.in_waiting:
                 print(ser.readline().decode().strip())

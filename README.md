@@ -56,6 +56,8 @@ This requires `tkinter` to be installed on your system.
 #### Arguments:
 - `--port`: The serial port of your ESP32 (e.g., `COM3` on Windows, `/dev/ttyUSB0` on Linux).
 - `--freq`: Frequency in MHz (e.g., 1080, 1120, 1200, 5865).
+- `--band`: Band name (e.g., "Band A", "Band R").
+- `--chan`: Channel number (1-8).
 - `--power`: VTX output power in mW (e.g., 25, 200, 1600).
 - `--addr`: (Optional) Change the VRX I2C address (hex, default: `68`).
 - `--scan`: (Optional) Scan the I2C bus to find the VRX address.
@@ -65,6 +67,11 @@ This requires `tkinter` to be installed on your system.
 Set frequency to 1280 MHz and power to 1600 mW:
 ```bash
 python3 vtx_vrx_control.py --port /dev/ttyUSB0 --freq 1280 --power 1600
+```
+
+Set using Band and Channel:
+```bash
+python3 vtx_vrx_control.py --port /dev/ttyUSB0 --band "Band R" --chan 1 --power 25
 ```
 
 Scan for I2C devices:
