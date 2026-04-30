@@ -6,8 +6,13 @@
 #define VTX_TX_PIN 17
 #define VTX_RX_PIN 16
 
+// Default I2C configuration
+int i2c_sda_pin = 21;
+int i2c_scl_pin = 22;
+
 // Default I2C address for VRX (can be changed via command)
-uint8_t vrx_i2c_addr = 0x54;
+// User provided: 8 bit - 0xD0, 7 bit - 0x68
+uint8_t vrx_i2c_addr = 0x68;
 
 // IRC Tramp packet structure
 void sendTrampPacket(char cmd, uint16_t value) {
@@ -57,16 +62,23 @@ void setVrxFrequency(uint16_t freq) {
 }
 
 void scanI2C() {
-  Serial.println("Scanning I2C bus...");
+  Serial.printf("Scanning I2C bus (SDA:%d, SCL:%d)...\n", i2c_sda_pin, i2c_scl_pin);
   byte count = 0;
   for (byte address = 1; address < 127; address++) {
     Wire.beginTransmission(address);
-    if (Wire.endTransmission() == 0) {
+    byte error = Wire.endTransmission();
+    if (error == 0) {
       Serial.printf("Found I2C device at 0x%02X\n", address);
       count++;
+    } else if (error == 4) {
+      Serial.printf("Unknown error at address 0x%02X\n", address);
     }
   }
-  if (count == 0) Serial.println("No I2C devices found.");
+  if (count == 0) {
+    Serial.println("No I2C devices found. Check your wiring and pull-up resistors.");
+  } else {
+    Serial.printf("Scan complete. Found %d device(s).\n", count);
+  }
 }
 
 void setup() {
@@ -76,14 +88,15 @@ void setup() {
   // VTX Serial (IRC Tramp @ 9600 baud)
   VTX_SERIAL.begin(9600, SERIAL_8N1, VTX_RX_PIN, VTX_TX_PIN);
 
-  // I2C for VRX (Default SDA 21, SCL 22 on ESP32)
-  Wire.begin();
+  // I2C for VRX
+  Wire.begin(i2c_sda_pin, i2c_scl_pin);
 
   Serial.println("ESP32 VTX/VRX Controller Initialized");
   Serial.println("Commands:");
   Serial.println("  F <freq_mhz> - Set VTX & VRX frequency");
   Serial.println("  P <power_mw> - Set VTX power");
-  Serial.println("  A <i2c_addr> - Set VRX I2C address (hex, e.g. A 54)");
+  Serial.println("  A <i2c_addr> - Set VRX I2C address (hex, e.g. A 68)");
+  Serial.println("  I <sda> <scl>- Set I2C pins");
   Serial.println("  S            - Scan I2C bus");
 }
 
@@ -114,6 +127,17 @@ void loop() {
       if (addr > 0) {
         vrx_i2c_addr = addr;
         Serial.printf("VRX I2C address set to 0x%02X\n", vrx_i2c_addr);
+      }
+    } else if (cmd == 'I') {
+      int firstSpace = arg.indexOf(' ');
+      if (firstSpace != -1) {
+        int sda = arg.substring(0, firstSpace).toInt();
+        int scl = arg.substring(firstSpace + 1).toInt();
+        i2c_sda_pin = sda;
+        i2c_scl_pin = scl;
+        Wire.end();
+        Wire.begin(i2c_sda_pin, i2c_scl_pin);
+        Serial.printf("I2C pins set to SDA:%d, SCL:%d\n", i2c_sda_pin, i2c_scl_pin);
       }
     } else if (cmd == 'S') {
       scanI2C();

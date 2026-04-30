@@ -57,7 +57,7 @@ This requires `tkinter` to be installed on your system.
 - `--port`: The serial port of your ESP32 (e.g., `COM3` on Windows, `/dev/ttyUSB0` on Linux).
 - `--freq`: Frequency in MHz (e.g., 1080, 1120, 1200, 5865).
 - `--power`: VTX output power in mW (e.g., 25, 200, 1600).
-- `--addr`: (Optional) Change the VRX I2C address (hex, default: `54`).
+- `--addr`: (Optional) Change the VRX I2C address (hex, default: `68`).
 - `--scan`: (Optional) Scan the I2C bus to find the VRX address.
 
 ### Examples
@@ -71,3 +71,15 @@ Scan for I2C devices:
 ```bash
 python3 vtx_vrx_control.py --port /dev/ttyUSB0 --scan
 ```
+
+## Troubleshooting I2C
+
+If the scanner reports **"No I2C devices found"**:
+
+1.  **Check Wiring**: Ensure SDA and SCL are connected to the correct pins on the ESP32.
+2.  **Pull-up Resistors**: I2C requires pull-up resistors (typically 4.7kΩ or 10kΩ) on both SDA and SCL lines to 3.3V. Some ESP32 boards or VRX modules might already have them, but others don't.
+3.  **Pin Configuration**: If you are not using the default pins (GPIO 21 for SDA, GPIO 22 for SCL), use the `--sda` and `--scl` flags in the CLI or the "Set I2C Pins" button in the GUI to change them at runtime.
+4.  **Common Errors**:
+    *   `Error: 2`: Address NACK (device not found at this address).
+    *   `Error: 3`: Data NACK (communication issue).
+    *   `Error: 4`: Other error (often indicates a bus short or missing pull-ups).

@@ -11,6 +11,8 @@ def main():
     parser.add_argument('--freq', type=int, help='Frequency in MHz to set on both VTX and VRX')
     parser.add_argument('--power', type=int, help='VTX power in mW')
     parser.add_argument('--addr', help='VRX I2C address in hex (e.g., 54)')
+    parser.add_argument('--sda', type=int, help='I2C SDA pin')
+    parser.add_argument('--scl', type=int, help='I2C SCL pin')
     parser.add_argument('--scan', action='store_true', help='Scan I2C bus for VRX')
 
     args = parser.parse_args()
@@ -21,6 +23,12 @@ def main():
 
         # Clear buffer
         ser.reset_input_buffer()
+
+        if args.sda is not None and args.scl is not None:
+            ser.write(f"I {args.sda} {args.scl}\n".encode())
+            print(f"Sent: Set I2C pins to SDA:{args.sda}, SCL:{args.scl}")
+            time.sleep(0.1)
+            print(ser.readline().decode().strip())
 
         if args.addr:
             ser.write(f"A {args.addr}\n".encode())

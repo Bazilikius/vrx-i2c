@@ -37,34 +37,47 @@ class VTXControllerGUI:
         # Control Section
         ttk.Separator(main_frame, orient=tk.HORIZONTAL).grid(row=2, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
 
+        # I2C Pins
+        ttk.Label(main_frame, text="I2C SDA Pin:").grid(row=3, column=0, sticky=tk.W)
+        self.sda_var = tk.StringVar(value="21")
+        ttk.Entry(main_frame, textvariable=self.sda_var, width=5).grid(row=3, column=1, sticky=tk.W)
+
+        ttk.Label(main_frame, text="SCL Pin:").grid(row=3, column=2, sticky=tk.W)
+        self.scl_var = tk.StringVar(value="22")
+        ttk.Entry(main_frame, textvariable=self.scl_var, width=5).grid(row=3, column=3, sticky=tk.W)
+
+        ttk.Button(main_frame, text="Set I2C Pins", command=self.set_i2c_pins).grid(row=4, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=5)
+
+        ttk.Separator(main_frame, orient=tk.HORIZONTAL).grid(row=5, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
+
         # Frequency
-        ttk.Label(main_frame, text="Frequency (MHz):").grid(row=3, column=0, sticky=tk.W)
+        ttk.Label(main_frame, text="Frequency (MHz):").grid(row=6, column=0, sticky=tk.W)
         self.freq_var = tk.StringVar(value="1200")
-        ttk.Entry(main_frame, textvariable=self.freq_var).grid(row=3, column=1, sticky=(tk.W, tk.E))
-        ttk.Button(main_frame, text="Set Frequency", command=self.set_frequency).grid(row=3, column=2, columnspan=2, sticky=(tk.W, tk.E), padx=5)
+        ttk.Entry(main_frame, textvariable=self.freq_var).grid(row=6, column=1, sticky=(tk.W, tk.E))
+        ttk.Button(main_frame, text="Set Frequency", command=self.set_frequency).grid(row=6, column=2, columnspan=2, sticky=(tk.W, tk.E), padx=5)
 
         # Power
-        ttk.Label(main_frame, text="Power (mW):").grid(row=4, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="Power (mW):").grid(row=7, column=0, sticky=tk.W, pady=5)
         self.power_var = tk.StringVar(value="25")
-        ttk.Entry(main_frame, textvariable=self.power_var).grid(row=4, column=1, sticky=(tk.W, tk.E))
-        ttk.Button(main_frame, text="Set Power", command=self.set_power).grid(row=4, column=2, columnspan=2, sticky=(tk.W, tk.E), padx=5)
+        ttk.Entry(main_frame, textvariable=self.power_var).grid(row=7, column=1, sticky=(tk.W, tk.E))
+        ttk.Button(main_frame, text="Set Power", command=self.set_power).grid(row=7, column=2, columnspan=2, sticky=(tk.W, tk.E), padx=5)
 
         # I2C Address
-        ttk.Label(main_frame, text="VRX I2C Addr (Hex):").grid(row=5, column=0, sticky=tk.W)
-        self.addr_var = tk.StringVar(value="54")
-        ttk.Entry(main_frame, textvariable=self.addr_var).grid(row=5, column=1, sticky=(tk.W, tk.E))
-        ttk.Button(main_frame, text="Set Address", command=self.set_address).grid(row=5, column=2, columnspan=2, sticky=(tk.W, tk.E), padx=5)
+        ttk.Label(main_frame, text="VRX I2C Addr (Hex):").grid(row=8, column=0, sticky=tk.W)
+        self.addr_var = tk.StringVar(value="68")
+        ttk.Entry(main_frame, textvariable=self.addr_var).grid(row=8, column=1, sticky=(tk.W, tk.E))
+        ttk.Button(main_frame, text="Set Address", command=self.set_address).grid(row=8, column=2, columnspan=2, sticky=(tk.W, tk.E), padx=5)
 
         # Scanner
-        ttk.Button(main_frame, text="Scan I2C Bus", command=self.scan_i2c).grid(row=6, column=0, columnspan=4, pady=10, sticky=(tk.W, tk.E))
+        ttk.Button(main_frame, text="Scan I2C Bus", command=self.scan_i2c).grid(row=9, column=0, columnspan=4, pady=10, sticky=(tk.W, tk.E))
 
         # Log Output
-        ttk.Label(main_frame, text="Console:").grid(row=7, column=0, sticky=tk.W)
+        ttk.Label(main_frame, text="Console:").grid(row=10, column=0, sticky=tk.W)
         self.log_text = tk.Text(main_frame, height=10, width=50)
-        self.log_text.grid(row=8, column=0, columnspan=4, sticky=(tk.W, tk.E))
+        self.log_text.grid(row=11, column=0, columnspan=4, sticky=(tk.W, tk.E))
 
         scrollbar = ttk.Scrollbar(main_frame, orient=tk.VERTICAL, command=self.log_text.yview)
-        scrollbar.grid(row=8, column=4, sticky=(tk.N, tk.S))
+        scrollbar.grid(row=11, column=4, sticky=(tk.N, tk.S))
         self.log_text['yscrollcommand'] = scrollbar.set
 
     def log(self, message):
@@ -120,6 +133,9 @@ class VTXControllerGUI:
 
     def set_address(self):
         self.send_command(f"A {self.addr_var.get()}")
+
+    def set_i2c_pins(self):
+        self.send_command(f"I {self.sda_var.get()} {self.scl_var.get()}")
 
     def scan_i2c(self):
         self.send_command("S")
