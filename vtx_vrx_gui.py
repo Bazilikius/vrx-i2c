@@ -228,12 +228,12 @@ class VTXControllerGUI:
                                              math.cos(d_r) - math.sin(lat_rad) * math.sin(p_lat))
                 path.append((math.degrees(p_lat), math.degrees(p_lon)))
 
-            circle = self.map_widget.set_path(path, color="red", width=1 if r_km < 15 else 2)
+            circle = self.map_widget.set_path(path, color="white", width=2 if r_km < 15 else 3)
             self.range_graphics.append(circle)
 
         # Draw Radial Lines and Labels (30° intervals)
-        # Position labels slightly outside 15km (e.g., 16km)
-        label_r = 16 / R
+        # Position labels slightly outside 15km (e.g., 16.5km)
+        label_r = 16.5 / R
         line_max_r = 15 / R
 
         for angle in angles:
@@ -246,31 +246,40 @@ class VTXControllerGUI:
                                            math.cos(line_max_r) - math.sin(lat_rad) * math.sin(end_lat))
 
             line = self.map_widget.set_path([(lat, lon), (math.degrees(end_lat), math.degrees(end_lon))],
-                                           color="red", width=1)
+                                           color="white", width=2)
             self.range_graphics.append(line)
 
-            # Labels at the edge (16km) - using small marker icon size or color to make it "invisible"
+            # Labels at the edge
             l_lat = math.asin(math.sin(lat_rad) * math.cos(label_r) +
                              math.cos(lat_rad) * math.sin(label_r) * math.cos(bearing))
             l_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(label_r) * math.cos(lat_rad),
                                         math.cos(label_r) - math.sin(lat_rad) * math.sin(l_lat))
 
-            # Placing text-only label (marker with no image and zero size if possible)
+            text = f"{angle}°"
+            if angle == 0: text = "N"
+            elif angle == 90: text = "E"
+            elif angle == 180: text = "S"
+            elif angle == 270: text = "W"
+
+            # Use white markers to blend with the grid, bold text
             lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
-                                            text=f"{angle}°", font=("Helvetica", 10, "bold"),
-                                            marker_color_circle="white", marker_color_outside="white")
+                                            text=text, font=("Helvetica", 14, "bold"),
+                                            text_color="white", marker_color_circle="black",
+                                            marker_color_outside="white", icon_radius=0)
             self.azimuth_labels.append(lbl)
 
-        # Distance labels along 0° (North) line
+        # Distance labels along SE (135°) line for clarity
+        dist_bearing = math.radians(135)
         for r_km in radii:
             d_r = r_km / R
             l_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
-                             math.cos(lat_rad) * math.sin(d_r) * math.cos(0))
-            l_lon = lon_rad + math.atan2(math.sin(0) * math.sin(d_r) * math.cos(lat_rad),
+                             math.cos(lat_rad) * math.sin(d_r) * math.cos(dist_bearing))
+            l_lon = lon_rad + math.atan2(math.sin(dist_bearing) * math.sin(d_r) * math.cos(lat_rad),
                                         math.cos(d_r) - math.sin(lat_rad) * math.sin(l_lat))
             lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
-                                            text=f"{r_km}km", font=("Helvetica", 8, "bold"),
-                                            marker_color_circle="white", marker_color_outside="white")
+                                            text=f"{r_km}km", font=("Helvetica", 12, "bold"),
+                                            text_color="white", marker_color_circle="black",
+                                            marker_color_outside="white", icon_radius=0)
             self.azimuth_labels.append(lbl)
 
     def load_favorites(self):
