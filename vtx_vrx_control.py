@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+import argparse
+import serial
+import time
+import sys
+
+def main():
+    parser = argparse.ArgumentParser(description='Control VTX and VRX via ESP32')
+    parser.add_argument('--port', required=True, help='Serial port of the ESP32 (e.g., /dev/ttyUSB0 or COM3)')
+    parser.add_argument('--baud', type=int, default=115200, help='Baud rate (default: 115200)')
+    parser.add_argument('--freq', type=int, help='Frequency in MHz to set on both VTX and VRX')
+    parser.add_argument('--power', type=int, help='VTX power in mW')
+    parser.add_argument('--addr', help='VRX I2C address in hex (e.g., 54)')
+    parser.add_argument('--scan', action='store_true', help='Scan I2C bus for VRX')
+
+    args = parser.parse_args()
+
+    try:
+        ser = serial.Serial(args.port, args.baud, timeout=1)
+        time.sleep(2)  # Wait for ESP32 to reset/initialize
+
+        # Clear buffer
+        ser.reset_input_buffer()
+
+        if args.addr:
+            ser.write(f"A {args.addr}\n".encode())
+            print(f"Sent: Set VRX I2C address to 0x{args.addr}")
+            time.sleep(0.1)
+            print(ser.readline().decode().strip())
+
+        if args.scan:
+            ser.write(b"S\n")
+            print("Sent: I2C Scan command")
+            # Wait a bit more for scan results
+            time.sleep(1)
+            while ser.in_waiting:
+                print(ser.readline().decode().strip())
+
+        if args.freq:
+            ser.write(f"F {args.freq}\n".encode())
+            print(f"Sent: Set Frequency to {args.freq} MHz")
+            time.sleep(0.1)
+            while ser.in_waiting:
+                print(ser.readline().decode().strip())
+
+        if args.power:
+            ser.write(f"P {args.power}\n".encode())
+            print(f"Sent: Set VTX Power to {args.power} mW")
+            time.sleep(0.1)
+            while ser.in_waiting:
+                print(ser.readline().decode().strip())
+
+        ser.close()
+
+    except serial.SerialException as e:
+        print(f"Error opening serial port: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
