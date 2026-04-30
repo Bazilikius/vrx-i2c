@@ -279,8 +279,7 @@ class VTXControllerGUI:
                 # Use large bold font and visible marker anchor
                 lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=txt,
                                                 font=("Arial", 22, "bold"), text_color="#FFFFFF",
-                                                marker_color_circle="#000000", marker_color_outside="#FFFFFF",
-                                                icon_radius=5)
+                                                marker_color_circle="#000000", marker_color_outside="#FFFFFF")
                 self.azimuth_labels.append(lbl)
 
             # 3. Distance Labels (along 165° line)
@@ -293,8 +292,7 @@ class VTXControllerGUI:
 
                 lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=f"{r_km}km",
                                                 font=("Arial", 18, "bold"), text_color="#FFFFFF",
-                                                marker_color_circle="#000000", marker_color_outside="#FFFFFF",
-                                                icon_radius=5)
+                                                marker_color_circle="#000000", marker_color_outside="#FFFFFF")
                 self.azimuth_labels.append(lbl)
         except Exception as e:
             self.log(f"Overlay Logic Error: {e}")
