@@ -79,6 +79,21 @@ Scan for I2C devices:
 python3 vtx_vrx_control.py --port /dev/ttyUSB0 --scan
 ```
 
+## Troubleshooting ESP32 Upload Errors
+
+If you see `Failed to connect to ESP32: No serial data received` when uploading:
+
+1.  **Manual Bootloader Mode**:
+    -   Hold the **BOOT** (or IO0) button on the ESP32.
+    -   Press and release the **EN** (or RESET) button.
+    -   Release the **BOOT** button.
+    -   Try uploading again.
+2.  **Check Hardware**:
+    -   Ensure you are using a **USB data cable** (some cables are for charging only).
+    -   Verify that the correct **COM port** is selected in the Arduino IDE (Tools > Port).
+3.  **Drivers**: Install the necessary drivers for your board (usually **CP210x** or **CH340**).
+4.  **Upload Speed**: Try reducing the "Upload Speed" in Tools to `115200`.
+
 ## Troubleshooting I2C
 
 If the scanner reports **"No I2C devices found"**:
