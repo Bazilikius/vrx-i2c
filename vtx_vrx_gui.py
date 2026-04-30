@@ -155,12 +155,34 @@ class VTXControllerGUI:
         # Use Google Hybrid (y) for satellite + labels (cities, roads)
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", max_zoom=22)
 
+        # Bind events for dynamic scaling
+        self.map_widget.canvas.bind("<MouseWheel>", self.on_map_interaction, add="+")
+        self.map_widget.canvas.bind("<Button-4>", self.on_map_interaction, add="+")
+        self.map_widget.canvas.bind("<Button-5>", self.on_map_interaction, add="+")
+        self.last_zoom = -1
+
         # Initialize default position and draw overlay
-        self.root.after(100, self.update_map_marker)
+        self.root.after(500, self.update_map_marker)
 
         self.map_widget.add_right_click_menu_command(label="Set System Location", command=self.add_marker_event, pass_coords=True)
 
         self.update_favorites_display()
+
+    def on_map_interaction(self, event=None):
+        # Schedule redraw if zoom changed
+        self.root.after(200, self.check_zoom_and_redraw)
+
+    def check_zoom_and_redraw(self):
+        current_zoom = self.map_widget.zoom
+        if current_zoom != self.last_zoom:
+            self.last_zoom = current_zoom
+            # Redraw only overlay graphics
+            try:
+                lat = float(self.lat_var.get().replace(',', '.'))
+                lon = float(self.lon_var.get().replace(',', '.'))
+                # Clear graphics but keep center marker if possible or just redraw everything
+                self.draw_enhanced_range_graphics(lat, lon)
+            except: pass
 
         # 3. Console/Advanced (Bottom)
         bottom_frame = ttk.Frame(root, padding="5")
@@ -230,29 +252,47 @@ class VTXControllerGUI:
             self.log(f"Map Update Error: {e}")
 
     def draw_enhanced_range_graphics(self, lat, lon):
+        # Explicitly cleanup only graphics and azimuth labels
+        for g in self.range_graphics:
+            try: g.delete()
+            except: pass
+        for l in self.azimuth_labels:
+            try: l.delete()
+            except: pass
+        self.range_graphics = []
+        self.azimuth_labels = []
+
         try:
             R = 6371.0 # Earth radius in km
             lat_rad, lon_rad = math.radians(lat), math.radians(lon)
+
+            # Dynamic Scaling
+            zoom = self.map_widget.zoom
+            # Width: 1 at zoom 8, 4 at zoom 15
+            line_w = max(1, int(zoom - 10))
+            # Font: 10 at zoom 8, 22 at zoom 15
+            font_main = max(8, int((zoom - 8) * 2 + 10))
+            font_dist = max(6, int((zoom - 8) * 1.5 + 8))
 
             # 1. Range Rings (5, 10, 15 km)
             for r_km in [5, 10, 15]:
                 pts = []
                 d_r = r_km / R
-                for i in range(0, 361, 4): # 4 degree steps for rings
+                for i in range(0, 361, 4):
                     br = math.radians(i)
                     p_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br))
                     p_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r)*math.cos(lat_rad),
                                                 math.cos(d_r)-math.sin(lat_rad)*math.sin(p_lat))
                     pts.append((math.degrees(p_lat), math.degrees(p_lon)))
 
-                path_obj = self.map_widget.set_path(pts, color="#FFFFFF", width=3)
+                path_obj = self.map_widget.set_path(pts, color="#FFFFFF", width=line_w)
                 self.range_graphics.append(path_obj)
 
             # 2. Azimuth Radials and Labels
             for angle in range(0, 360, 30):
                 br = math.radians(angle)
 
-                # Draw Radial Line (from center to 15km) - using 5 segments for robustness
+                # Draw Radial Line (from center to 15km)
                 line_pts = []
                 for dist in [0, 3.75, 7.5, 11.25, 15.0]:
                     d_r_step = dist / R
@@ -261,25 +301,25 @@ class VTXControllerGUI:
                                                 math.cos(d_r_step)-math.sin(lat_rad)*math.sin(p_lat))
                     line_pts.append((math.degrees(p_lat), math.degrees(p_lon)))
 
-                line_obj = self.map_widget.set_path(line_pts, color="#FFFFFF", width=3)
+                line_obj = self.map_widget.set_path(line_pts, color="#FFFFFF", width=max(1, line_w - 1))
                 self.range_graphics.append(line_obj)
 
-                # Label position at 17.5 km (outside the 15km ring)
+                # Label position at 17.5 km
                 d_lbl = 17.5 / R
                 l_lat = math.asin(math.sin(lat_rad)*math.cos(d_lbl) + math.cos(lat_rad)*math.sin(d_lbl)*math.cos(br))
                 l_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_lbl)*math.cos(lat_rad),
                                             math.cos(d_lbl)-math.sin(lat_rad)*math.sin(l_lat))
 
-                txt = f"{angle}\u00b0" # Degree symbol
+                txt = f"{angle}\u00b0"
                 if angle == 0: txt = "N"
                 elif angle == 90: txt = "E"
                 elif angle == 180: txt = "S"
                 elif angle == 270: txt = "W"
 
-                # Use large bold font and visible marker anchor
+                # Text-only appearance: Use empty strings for transparent colors
                 lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=txt,
-                                                font=("Arial", 22, "bold"), text_color="#FFFFFF",
-                                                marker_color_circle="#000000", marker_color_outside="#FFFFFF")
+                                                font=("Arial", font_main, "bold"), text_color="#FFFFFF",
+                                                marker_color_circle="", marker_color_outside="")
                 self.azimuth_labels.append(lbl)
 
             # 3. Distance Labels (along 165° line)
@@ -291,8 +331,8 @@ class VTXControllerGUI:
                                             math.cos(d_r)-math.sin(lat_rad)*math.sin(l_lat))
 
                 lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=f"{r_km}km",
-                                                font=("Arial", 18, "bold"), text_color="#FFFFFF",
-                                                marker_color_circle="#000000", marker_color_outside="#FFFFFF")
+                                                font=("Arial", font_dist, "bold"), text_color="#FFFFFF",
+                                                marker_color_circle="", marker_color_outside="")
                 self.azimuth_labels.append(lbl)
         except Exception as e:
             self.log(f"Overlay Logic Error: {e}")
