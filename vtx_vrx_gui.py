@@ -17,7 +17,7 @@ class VTXControllerGUI:
         self.root.title("VTX/VRX Pro Controller with Map")
         self.ser = None
         self.marker = None
-        self.range_circle = None
+        self.range_graphics = [] # Store circles and lines
         self.azimuth_labels = []
         self.favorites_file = "favorites.json"
         self.favorites = self.load_favorites()
@@ -188,53 +188,74 @@ class VTXControllerGUI:
         try:
             lat = float(self.lat_var.get())
             lon = float(self.lon_var.get())
+
+            # Cleanup
             if self.marker: self.marker.delete()
-            if self.range_circle: self.range_circle.delete()
+            for g in self.range_graphics: g.delete()
             for l in self.azimuth_labels: l.delete()
+            self.range_graphics = []
             self.azimuth_labels = []
 
             self.marker = self.map_widget.set_marker(lat, lon, text="System Point")
-            self.draw_range_circle(lat, lon, 15) # 15km
+
+            # Draw circles and radial lines
+            self.draw_enhanced_range_graphics(lat, lon)
 
             self.map_widget.set_position(lat, lon)
             self.log(f"Map: Position set to {lat}, {lon}")
         except ValueError:
             messagebox.showwarning("Warning", "Invalid coordinates.")
 
-    def draw_range_circle(self, lat, lon, radius_km):
-        # Calculate points for a circle on a sphere
-        path = []
-        points = 64 # Number of segments
+    def draw_enhanced_range_graphics(self, lat, lon):
         R = 6371.0 # Earth radius in km
-
         lat_rad = math.radians(lat)
         lon_rad = math.radians(lon)
-        d_r = radius_km / R
 
-        for i in range(points + 1):
-            bearing = math.radians(i * (360 / points))
+        # Radii to draw
+        radii = [5, 10, 15]
+        # Angles to draw (Azimuth lines)
+        angles = [0, 45, 90, 135, 180, 225, 270, 315]
 
-            point_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
+        # Draw Circles
+        for r_km in radii:
+            path = []
+            d_r = r_km / R
+            for i in range(65):
+                bearing = math.radians(i * (360 / 64))
+                p_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
                                  math.cos(lat_rad) * math.sin(d_r) * math.cos(bearing))
+                p_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(d_r) * math.cos(lat_rad),
+                                             math.cos(d_r) - math.sin(lat_rad) * math.sin(p_lat))
+                path.append((math.degrees(p_lat), math.degrees(p_lon)))
 
-            point_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(d_r) * math.cos(lat_rad),
-                                             math.cos(d_r) - math.sin(lat_rad) * math.sin(point_lat))
+            circle = self.map_widget.set_path(path, color="red", width=1 if r_km < 15 else 2)
+            self.range_graphics.append(circle)
 
-            path.append((math.degrees(point_lat), math.degrees(point_lon)))
+        # Draw Radial Lines and Labels at intersections
+        max_r = 15 / R
+        for angle in angles:
+            bearing = math.radians(angle)
+            # End point of radial line at 15km
+            end_lat = math.asin(math.sin(lat_rad) * math.cos(max_r) +
+                               math.cos(lat_rad) * math.sin(max_r) * math.cos(bearing))
+            end_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(max_r) * math.cos(lat_rad),
+                                           math.cos(max_r) - math.sin(lat_rad) * math.sin(end_lat))
 
-        self.range_circle = self.map_widget.set_path(path, color="red", width=2, name="range_circle")
+            line = self.map_widget.set_path([(lat, lon), (math.degrees(end_lat), math.degrees(end_lon))],
+                                           color="red", width=1)
+            self.range_graphics.append(line)
 
-        # Add degree labels
-        for degree in [0, 45, 90, 135, 180, 225, 270, 315]:
-            bearing = math.radians(degree)
-            l_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
-                             math.cos(lat_rad) * math.sin(d_r) * math.cos(bearing))
-            l_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(d_r) * math.cos(lat_rad),
-                                        math.cos(d_r) - math.sin(lat_rad) * math.sin(l_lat))
+            # Labels at each circle intersection
+            for r_km in radii:
+                d_r = r_km / R
+                l_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
+                                 math.cos(lat_rad) * math.sin(d_r) * math.cos(bearing))
+                l_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(d_r) * math.cos(lat_rad),
+                                            math.cos(d_r) - math.sin(lat_rad) * math.sin(l_lat))
 
-            lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
-                                            text=f"{degree}°", font=("Helvetica", 8))
-            self.azimuth_labels.append(lbl)
+                lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
+                                                text=f"{angle}°\n{r_km}km", font=("Helvetica", 7))
+                self.azimuth_labels.append(lbl)
 
     def load_favorites(self):
         if os.path.exists(self.favorites_file):
