@@ -36,11 +36,19 @@ void sendTrampPacket(char cmd, uint16_t value) {
 }
 
 void setVtxFrequency(uint16_t freq) {
-  sendTrampPacket('f', freq);
+  // Send 3 times for reliability
+  for (int i = 0; i < 3; i++) {
+    sendTrampPacket('f', freq);
+    delay(50);
+  }
 }
 
 void setVtxPower(uint16_t power) {
-  sendTrampPacket('p', power);
+  // Send 3 times for reliability
+  for (int i = 0; i < 3; i++) {
+    sendTrampPacket('p', power);
+    delay(50);
+  }
 }
 
 void setVrxFrequency(uint16_t freq) {
@@ -93,7 +101,9 @@ void setup() {
 
   Serial.println("ESP32 VTX/VRX Controller Initialized");
   Serial.println("Commands:");
-  Serial.println("  F <freq_mhz> - Set VTX & VRX frequency");
+  Serial.println("  V <freq_mhz> - Set ONLY VTX frequency");
+  Serial.println("  R <freq_mhz> - Set ONLY VRX frequency");
+  Serial.println("  F <freq_mhz> - Set BOTH VTX & VRX frequency");
   Serial.println("  P <power_mw> - Set VTX power");
   Serial.println("  A <i2c_addr> - Set VRX I2C address (hex, e.g. A 68)");
   Serial.println("  I <sda> <scl>- Set I2C pins");
@@ -110,12 +120,24 @@ void loop() {
     String arg = input.substring(1);
     arg.trim();
 
-    if (cmd == 'F') {
+    if (cmd == 'V') {
+      uint16_t freq = arg.toInt();
+      if (freq > 0) {
+        setVtxFrequency(freq);
+        Serial.printf("Set VTX Frequency: %d MHz\n", freq);
+      }
+    } else if (cmd == 'R') {
+      uint16_t freq = arg.toInt();
+      if (freq > 0) {
+        setVrxFrequency(freq);
+        Serial.printf("Set VRX Frequency: %d MHz\n", freq);
+      }
+    } else if (cmd == 'F') {
       uint16_t freq = arg.toInt();
       if (freq > 0) {
         setVtxFrequency(freq);
         setVrxFrequency(freq);
-        Serial.printf("Set Frequency: %d MHz\n", freq);
+        Serial.printf("Set BOTH Frequency: %d MHz\n", freq);
       }
     } else if (cmd == 'P') {
       uint16_t power = arg.toInt();

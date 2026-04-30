@@ -10,6 +10,8 @@ def main():
     parser.add_argument('--port', required=True, help='Serial port of the ESP32 (e.g., /dev/ttyUSB0 or COM3)')
     parser.add_argument('--baud', type=int, default=115200, help='Baud rate (default: 115200)')
     parser.add_argument('--freq', type=int, help='Frequency in MHz to set on both VTX and VRX')
+    parser.add_argument('--vtx-freq', type=int, help='Frequency in MHz to set ONLY on VTX')
+    parser.add_argument('--vrx-freq', type=int, help='Frequency in MHz to set ONLY on VRX')
     parser.add_argument('--band', help='Band name (e.g., "Band A", "Band R")')
     parser.add_argument('--chan', type=int, help='Channel number (1-8)')
     parser.add_argument('--power', type=int, help='VTX power in mW')
@@ -60,7 +62,21 @@ def main():
 
         if freq:
             ser.write(f"F {freq}\n".encode())
-            print(f"Sent: Set Frequency to {freq} MHz")
+            print(f"Sent: Set BOTH Frequency to {freq} MHz")
+            time.sleep(0.1)
+            while ser.in_waiting:
+                print(ser.readline().decode().strip())
+
+        if args.vtx_freq:
+            ser.write(f"V {args.vtx_freq}\n".encode())
+            print(f"Sent: Set VTX Frequency to {args.vtx_freq} MHz")
+            time.sleep(0.1)
+            while ser.in_waiting:
+                print(ser.readline().decode().strip())
+
+        if args.vrx_freq:
+            ser.write(f"R {args.vrx_freq}\n".encode())
+            print(f"Sent: Set VRX Frequency to {args.vrx_freq} MHz")
             time.sleep(0.1)
             while ser.in_waiting:
                 print(ser.readline().decode().strip())
