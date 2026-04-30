@@ -34,37 +34,38 @@ class VTXControllerGUI:
         self.status_var = tk.StringVar(value="Disconnected")
         ttk.Label(conn_frame, textvariable=self.status_var, foreground="blue").pack(side=tk.LEFT, padx=10)
 
-        # 2. Main Control Area (Middle) - 3 Columns
+        # 2. Main Control Area (Middle)
         control_frame = ttk.Frame(root, padding="5")
         control_frame.grid(row=1, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
-        control_frame.columnconfigure(0, weight=1) # VTX Freq
-        control_frame.columnconfigure(1, weight=1) # VTX Power
-        control_frame.columnconfigure(2, weight=3) # VRX Freq (Wide)
+        control_frame.columnconfigure(0, weight=1) # VTX Col
+        control_frame.columnconfigure(1, weight=5) # VRX Grid Col
         control_frame.rowconfigure(0, weight=1)
 
-        # --- Column 1: VTX Frequency ---
-        vtx_freq_lf = ttk.LabelFrame(control_frame, text="VTX Frequency (1.2G)", padding="5")
-        vtx_freq_lf.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
-        for i, freq in enumerate(VTX_12G_TABLE):
+        # --- Left Column: VTX Control ---
+        vtx_side_frame = ttk.Frame(control_frame)
+        vtx_side_frame.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
+
+        vtx_freq_lf = ttk.LabelFrame(vtx_side_frame, text="VTX Frequency (1.2G)", padding="5")
+        vtx_freq_lf.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        for freq in VTX_12G_TABLE:
             btn = ttk.Button(vtx_freq_lf, text=f"{freq} MHz",
                              command=lambda f=freq: self.send_command(f"V {f}"))
-            btn.pack(fill=tk.X, pady=2)
+            btn.pack(fill=tk.X, pady=1)
 
-        # --- Column 2: VTX Power ---
-        vtx_pwr_lf = ttk.LabelFrame(control_frame, text="VTX Power", padding="5")
-        vtx_pwr_lf.grid(row=0, column=1, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
+        vtx_pwr_lf = ttk.LabelFrame(vtx_side_frame, text="VTX Power", padding="5")
+        vtx_pwr_lf.pack(fill=tk.X, padx=5, pady=5)
         power_levels = [25, 200, 400, 600, 1000, 1600]
         for p in power_levels:
             btn = ttk.Button(vtx_pwr_lf, text=f"{p} mW",
                              command=lambda val=p: self.send_command(f"P {val}"))
-            btn.pack(fill=tk.X, pady=2)
+            btn.pack(fill=tk.X, pady=1)
 
-        # --- Column 3: VRX Frequency (Scrollable) ---
-        vrx_freq_lf = ttk.LabelFrame(control_frame, text="VRX Frequency Select", padding="5")
-        vrx_freq_lf.grid(row=0, column=2, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
+        # --- Right Column: VRX Grid (2 Main Columns of Bands) ---
+        vrx_main_lf = ttk.LabelFrame(control_frame, text="VRX Channels", padding="5")
+        vrx_main_lf.grid(row=0, column=1, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
 
-        canvas = tk.Canvas(vrx_freq_lf)
-        scrollbar = ttk.Scrollbar(vrx_freq_lf, orient="vertical", command=canvas.yview)
+        canvas = tk.Canvas(vrx_main_lf)
+        scrollbar = ttk.Scrollbar(vrx_main_lf, orient="vertical", command=canvas.yview)
         scroll_frame = ttk.Frame(canvas)
 
         scroll_frame.bind(
@@ -78,39 +79,50 @@ class VTXControllerGUI:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # Populate VRX buttons from BAND_TABLE
-        row_idx = 0
-        for band, freqs in BAND_TABLE.items():
-            ttk.Label(scroll_frame, text=band, font=('Helvetica', 10, 'bold')).grid(row=row_idx, column=0, columnspan=4, sticky=tk.W, pady=(5,0))
-            row_idx += 1
-            for i, freq in enumerate(freqs):
+        # Organize bands into two major columns
+        bands = list(BAND_TABLE.keys())
+        num_bands = len(bands)
+        half = (num_bands + 1) // 2
+
+        # We'll create two sub-frames within the scroll_frame
+        col_left = ttk.Frame(scroll_frame)
+        col_left.grid(row=0, column=0, sticky=tk.N, padx=10)
+        col_right = ttk.Frame(scroll_frame)
+        col_right.grid(row=0, column=1, sticky=tk.N, padx=10)
+
+        for idx, band in enumerate(bands):
+            parent = col_left if idx < half else col_right
+
+            band_lf = ttk.LabelFrame(parent, text=band, padding="2")
+            band_lf.pack(fill=tk.X, pady=5)
+
+            # 4 channels per row within each band
+            for i, freq in enumerate(BAND_TABLE[band]):
                 btn_text = f"CH{i+1}\n{freq}"
-                btn = tk.Button(scroll_frame, text=btn_text, width=8, height=2,
-                                bg="#e1e1e1", activebackground="#4a90e2",
+                btn = tk.Button(band_lf, text=btn_text, width=8, height=2,
+                                font=('Helvetica', 8),
+                                bg="#f0f0f0", activebackground="#4a90e2",
                                 command=lambda f=freq: self.send_command(f"R {f}"))
-                btn.grid(row=row_idx + (i // 4), column=i % 4, padx=2, pady=2)
-            row_idx += 2
+                btn.grid(row=i // 4, column=i % 4, padx=1, pady=1)
 
         # 3. Console/Advanced (Bottom)
         bottom_frame = ttk.Frame(root, padding="5")
         bottom_frame.grid(row=2, column=0, sticky=(tk.W, tk.E))
 
-        # Log
         log_frame = ttk.LabelFrame(bottom_frame, text="Console", padding="5")
         log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.log_text = tk.Text(log_frame, height=6, width=50)
+        self.log_text = tk.Text(log_frame, height=5, width=50)
         self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         log_scroll = ttk.Scrollbar(log_frame, command=self.log_text.yview)
         log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.log_text.config(yscrollcommand=log_scroll.set)
 
-        # Advanced Tiny Frame
         adv_frame = ttk.LabelFrame(bottom_frame, text="I2C", padding="5")
         adv_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=5)
         self.addr_var = tk.StringVar(value="68")
         ttk.Entry(adv_frame, textvariable=self.addr_var, width=4).grid(row=0, column=0)
-        ttk.Button(adv_frame, text="Set", width=4, command=self.set_address).grid(row=0, column=1)
-        ttk.Button(adv_frame, text="Scan", width=8, command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
+        ttk.Button(adv_frame, text="Set Addr", command=self.set_address).grid(row=0, column=1)
+        ttk.Button(adv_frame, text="Scan I2C", command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
 
     def log(self, message):
         self.log_text.insert(tk.END, message + "\n")
