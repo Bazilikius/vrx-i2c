@@ -30,6 +30,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 
 - Python 3.x
 - `pyserial` library
+- `tkintermapview` library (for map integration)
 
 Install dependencies:
 ```bash
@@ -53,9 +54,13 @@ python3 vtx_vrx_gui.py
 ```
 
 **GUI Layout:**
-- **VTX Column**: One-click buttons for standard 1.2GHz frequencies.
-- **Power Column**: Buttons for selecting VTX output power (25mW to 1600mW).
-- **VRX Grid**: A scrollable list of all bands and channels. Each button shows the Band, Channel, and Frequency.
+- **Hardware Controls Tab**:
+    - **VTX Column**: One-click buttons for standard 1.2GHz frequencies.
+    - **Power Column**: Buttons for selecting VTX output power (25mW to 1600mW).
+    - **VRX Grid**: A scrollable list of all bands and channels. Each button shows the Band, Channel, and Frequency.
+- **Satellite Map Tab**:
+    - **Map Integration**: View a satellite map using Google Tiles.
+    - **Marker Placement**: Right-click on the map or enter coordinates to set the system location marker.
 
 #### Arguments:
 - `--port`: The serial port of your ESP32 (e.g., `COM3` on Windows, `/dev/ttyUSB0` on Linux).

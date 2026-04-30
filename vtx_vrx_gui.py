@@ -6,12 +6,14 @@ import serial.tools.list_ports
 import time
 import threading
 from vtx_table import BAND_TABLE, VTX_12G_TABLE
+import tkintermapview
 
 class VTXControllerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("VTX/VRX Pro Controller")
+        self.root.title("VTX/VRX Pro Controller with Map")
         self.ser = None
+        self.marker = None
 
         # Main Layout
         root.columnconfigure(0, weight=1)
@@ -34,15 +36,20 @@ class VTXControllerGUI:
         self.status_var = tk.StringVar(value="Disconnected")
         ttk.Label(conn_frame, textvariable=self.status_var, foreground="blue").pack(side=tk.LEFT, padx=10)
 
-        # 2. Main Control Area (Middle)
-        control_frame = ttk.Frame(root, padding="5")
-        control_frame.grid(row=1, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
-        control_frame.columnconfigure(0, weight=1) # VTX Col
-        control_frame.columnconfigure(1, weight=5) # VRX Grid Col
-        control_frame.rowconfigure(0, weight=1)
+        # 2. Tabs
+        self.notebook = ttk.Notebook(root)
+        self.notebook.grid(row=1, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
 
-        # --- Left Column: VTX Control ---
-        vtx_side_frame = ttk.Frame(control_frame)
+        # --- Tab 1: Controls ---
+        control_tab = ttk.Frame(self.notebook)
+        self.notebook.add(control_tab, text="Hardware Controls")
+
+        control_tab.columnconfigure(0, weight=1)
+        control_tab.columnconfigure(1, weight=5)
+        control_tab.rowconfigure(0, weight=1)
+
+        # VTX Side
+        vtx_side_frame = ttk.Frame(control_tab)
         vtx_side_frame.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
 
         vtx_freq_lf = ttk.LabelFrame(vtx_side_frame, text="VTX Frequency (1.2G)", padding="5")
@@ -60,8 +67,8 @@ class VTXControllerGUI:
                              command=lambda val=p: self.send_command(f"P {val}"))
             btn.pack(fill=tk.X, pady=1)
 
-        # --- Right Column: VRX Grid (2 Main Columns of Bands) ---
-        vrx_main_lf = ttk.LabelFrame(control_frame, text="VRX Channels", padding="5")
+        # VRX Grid (3 Columns)
+        vrx_main_lf = ttk.LabelFrame(control_tab, text="VRX Channels", padding="5")
         vrx_main_lf.grid(row=0, column=1, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
 
         canvas = tk.Canvas(vrx_main_lf)
@@ -75,39 +82,53 @@ class VTXControllerGUI:
 
         canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
-
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # Organize bands into three major columns
         bands = list(BAND_TABLE.keys())
-        num_bands = len(bands)
-        # Calculate items per column
         col_count = 3
-        per_col = (num_bands + col_count - 1) // col_count
+        per_col = (len(bands) + col_count - 1) // col_count
 
-        # We'll create three sub-frames within the scroll_frame
-        columns = []
         for i in range(col_count):
-            col = ttk.Frame(scroll_frame)
-            col.grid(row=0, column=i, sticky=tk.N, padx=10)
-            columns.append(col)
+            col_frame = ttk.Frame(scroll_frame)
+            col_frame.grid(row=0, column=i, sticky=tk.N, padx=10)
+            for j in range(per_col):
+                idx = i * per_col + j
+                if idx < len(bands):
+                    band = bands[idx]
+                    band_lf = ttk.LabelFrame(col_frame, text=band, padding="2")
+                    band_lf.pack(fill=tk.X, pady=5)
+                    for k, freq in enumerate(BAND_TABLE[band]):
+                        btn = tk.Button(band_lf, text=f"CH{k+1}\n{freq}", width=8, height=2,
+                                        font=('Helvetica', 8), bg="#f0f0f0",
+                                        command=lambda f=freq: self.send_command(f"R {f}"))
+                        btn.grid(row=k // 4, column=k % 4, padx=1, pady=1)
 
-        for idx, band in enumerate(bands):
-            col_idx = idx // per_col
-            parent = columns[min(col_idx, col_count - 1)]
+        # --- Tab 2: Map ---
+        map_tab = ttk.Frame(self.notebook)
+        self.notebook.add(map_tab, text="Satellite Map")
 
-            band_lf = ttk.LabelFrame(parent, text=band, padding="2")
-            band_lf.pack(fill=tk.X, pady=5)
+        map_controls = ttk.Frame(map_tab, padding="5")
+        map_controls.pack(fill=tk.X)
 
-            # 4 channels per row within each band
-            for i, freq in enumerate(BAND_TABLE[band]):
-                btn_text = f"CH{i+1}\n{freq}"
-                btn = tk.Button(band_lf, text=btn_text, width=8, height=2,
-                                font=('Helvetica', 8),
-                                bg="#f0f0f0", activebackground="#4a90e2",
-                                command=lambda f=freq: self.send_command(f"R {f}"))
-                btn.grid(row=i // 4, column=i % 4, padx=1, pady=1)
+        ttk.Label(map_controls, text="Lat:").pack(side=tk.LEFT)
+        self.lat_var = tk.StringVar(value="50.4501")
+        ttk.Entry(map_controls, textvariable=self.lat_var, width=12).pack(side=tk.LEFT, padx=5)
+
+        ttk.Label(map_controls, text="Lon:").pack(side=tk.LEFT)
+        self.lon_var = tk.StringVar(value="30.5234")
+        ttk.Entry(map_controls, textvariable=self.lon_var, width=12).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(map_controls, text="Go To & Set Marker", command=self.update_map_marker).pack(side=tk.LEFT, padx=5)
+        ttk.Label(map_controls, text="(Right-click map to set position)", foreground="gray").pack(side=tk.LEFT, padx=10)
+
+        # Map View
+        self.map_widget = tkintermapview.TkinterMapView(map_tab, corner_radius=0)
+        self.map_widget.pack(fill="both", expand=True)
+        self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", max_zoom=22)
+        self.map_widget.set_position(50.4501, 30.5234) # Default to Kiev
+        self.map_widget.set_zoom(15)
+        self.map_widget.add_right_click_menu_command(label="Set System Location", command=self.add_marker_event, pass_coords=True)
 
         # 3. Console/Advanced (Bottom)
         bottom_frame = ttk.Frame(root, padding="5")
@@ -121,12 +142,28 @@ class VTXControllerGUI:
         log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.log_text.config(yscrollcommand=log_scroll.set)
 
-        adv_frame = ttk.LabelFrame(bottom_frame, text="I2C", padding="5")
+        adv_frame = ttk.LabelFrame(bottom_frame, text="I2C/Config", padding="5")
         adv_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=5)
         self.addr_var = tk.StringVar(value="68")
         ttk.Entry(adv_frame, textvariable=self.addr_var, width=4).grid(row=0, column=0)
-        ttk.Button(adv_frame, text="Set Addr", command=self.set_address).grid(row=0, column=1)
-        ttk.Button(adv_frame, text="Scan I2C", command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
+        ttk.Button(adv_frame, text="Addr", command=self.set_address).grid(row=0, column=1)
+        ttk.Button(adv_frame, text="Scan", command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
+
+    def add_marker_event(self, coords):
+        self.lat_var.set(f"{coords[0]:.6f}")
+        self.lon_var.set(f"{coords[1]:.6f}")
+        self.update_map_marker()
+
+    def update_map_marker(self):
+        try:
+            lat = float(self.lat_var.get())
+            lon = float(self.lon_var.get())
+            if self.marker: self.marker.delete()
+            self.marker = self.map_widget.set_marker(lat, lon, text="System Point")
+            self.map_widget.set_position(lat, lon)
+            self.log(f"Map: Position set to {lat}, {lon}")
+        except ValueError:
+            messagebox.showwarning("Warning", "Invalid coordinates.")
 
     def log(self, message):
         self.log_text.insert(tk.END, message + "\n")
