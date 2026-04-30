@@ -146,7 +146,7 @@ class VTXControllerGUI:
         self.lon_var = tk.StringVar(value="30.5234")
         ttk.Entry(map_controls, textvariable=self.lon_var, width=12).pack(side=tk.LEFT, padx=5)
 
-        ttk.Button(map_controls, text="Go To & Set Marker", command=self.update_map_marker).pack(side=tk.LEFT, padx=5)
+        ttk.Button(map_controls, text="Update/Refresh Map", command=self.update_map_marker).pack(side=tk.LEFT, padx=5)
         ttk.Label(map_controls, text="(Right-click map to set position)", foreground="gray").pack(side=tk.LEFT, padx=10)
 
         # Map View
@@ -154,8 +154,10 @@ class VTXControllerGUI:
         self.map_widget.pack(fill="both", expand=True)
         # Use Google Hybrid (y) for satellite + labels (cities, roads)
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", max_zoom=22)
-        self.map_widget.set_position(50.4501, 30.5234) # Default to Kiev
-        self.map_widget.set_zoom(15)
+
+        # Initialize default position and draw overlay
+        self.root.after(100, self.update_map_marker)
+
         self.map_widget.add_right_click_menu_command(label="Set System Location", command=self.add_marker_event, pass_coords=True)
 
         self.update_favorites_display()
@@ -186,104 +188,84 @@ class VTXControllerGUI:
 
     def update_map_marker(self):
         try:
-            lat = float(self.lat_var.get())
-            lon = float(self.lon_var.get())
+            # Parse coordinates (handle comma/dot)
+            l_raw = str(self.lat_var.get()).replace(',', '.')
+            o_raw = str(self.lon_var.get()).replace(',', '.')
+            lat, lon = float(l_raw), float(o_raw)
 
-            # Cleanup
-            if self.marker: self.marker.delete()
-            for g in self.range_graphics: g.delete()
-            for l in self.azimuth_labels: l.delete()
-            self.range_graphics = []
-            self.azimuth_labels = []
-
-            # Draw System Center Marker
-            self.marker = self.map_widget.set_marker(lat, lon, icon_radius=8,
-                                                    marker_color_circle="red",
-                                                    marker_color_outside="white")
-
-            # Draw circles and radial lines
-            self.draw_enhanced_range_graphics(lat, lon)
-
+            # Full Reset
+            self.map_widget.delete_all_marker()
+            self.map_widget.delete_all_path()
             self.map_widget.set_position(lat, lon)
-            self.log(f"Map: Position set to {lat}, {lon}")
-        except ValueError:
-            messagebox.showwarning("Warning", "Invalid coordinates.")
+            self.map_widget.set_zoom(12)
+
+            # Draw Base Marker
+            self.map_widget.set_marker(lat, lon, text="SYSTEM BASE",
+                                      text_color="yellow", marker_color_circle="red")
+
+            # Draw Tactical Overlay
+            self.draw_enhanced_range_graphics(lat, lon)
+            self.log(f"Map: Center updated to {lat}, {lon}")
+        except Exception as e:
+            self.log(f"Map Update Error: {e}")
 
     def draw_enhanced_range_graphics(self, lat, lon):
-        R = 6371.0 # Earth radius in km
-        lat_rad = math.radians(lat)
-        lon_rad = math.radians(lon)
+        try:
+            R = 6371.0 # Earth radius in km
+            lat_rad, lon_rad = math.radians(lat), math.radians(lon)
 
-        # Radii to draw
-        radii = [5, 10, 15]
-        # Angles to draw (Azimuth lines) - 30 degree intervals
-        angles = list(range(0, 360, 30))
+            # 1. Range Rings (5, 10, 15 km)
+            for r_km in [5, 10, 15]:
+                pts = []
+                d_r = r_km / R
+                for i in range(0, 361, 5):
+                    br = math.radians(i)
+                    p_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br))
+                    p_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r)*math.cos(lat_rad),
+                                                math.cos(d_r)-math.sin(lat_rad)*math.sin(p_lat))
+                    pts.append((math.degrees(p_lat), math.degrees(p_lon)))
+                self.map_widget.set_path(pts, color="white", width=3)
 
-        # Draw Circles
-        for r_km in radii:
-            path = []
-            d_r = r_km / R
-            for i in range(121): # High resolution circles
-                bearing = math.radians(i * (360 / 120))
-                p_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
-                                 math.cos(lat_rad) * math.sin(d_r) * math.cos(bearing))
-                p_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(d_r) * math.cos(lat_rad),
-                                             math.cos(d_r) - math.sin(lat_rad) * math.sin(p_lat))
-                path.append((math.degrees(p_lat), math.degrees(p_lon)))
+            # 2. Azimuth Radials and Labels
+            for angle in range(0, 360, 30):
+                br = math.radians(angle)
+                d_r = 15.0 / R
 
-            circle = self.map_widget.set_path(path, color="#FFFFFF", width=3 if r_km < 15 else 4)
-            self.range_graphics.append(circle)
+                # Draw Radial Line
+                e_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br))
+                e_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r)*math.cos(lat_rad),
+                                            math.cos(d_r)-math.sin(lat_rad)*math.sin(e_lat))
+                self.map_widget.set_path([(lat, lon), (math.degrees(e_lat), math.degrees(e_lon))],
+                                         color="white", width=2)
 
-        # Draw Radial Lines and Azimuth Labels
-        line_max_r = 15 / R
-        label_edge_r = 16.5 / R # Labels at 16.5km distance
+                # Label at 17.0 km
+                d_lbl = 17.0 / R
+                l_lat = math.asin(math.sin(lat_rad)*math.cos(d_lbl) + math.cos(lat_rad)*math.sin(d_lbl)*math.cos(br))
+                l_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_lbl)*math.cos(lat_rad),
+                                            math.cos(d_lbl)-math.sin(lat_rad)*math.sin(l_lat))
 
-        for angle in angles:
-            bearing = math.radians(angle)
+                txt = f"{angle}°"
+                if angle == 0: txt = "N"
+                elif angle == 90: txt = "E"
+                elif angle == 180: txt = "S"
+                elif angle == 270: txt = "W"
 
-            # Draw radial line from center to 15km
-            end_lat = math.asin(math.sin(lat_rad) * math.cos(line_max_r) +
-                               math.cos(lat_rad) * math.sin(line_max_r) * math.cos(bearing))
-            end_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(line_max_r) * math.cos(lat_rad),
-                                           math.cos(line_max_r) - math.sin(lat_rad) * math.sin(end_lat))
+                self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=txt,
+                                          font=("Arial", 18, "bold"), text_color="white",
+                                          marker_color_circle="black", icon_radius=3)
 
-            line = self.map_widget.set_path([(lat, lon), (math.degrees(end_lat), math.degrees(end_lon))],
-                                           color="#FFFFFF", width=3)
-            self.range_graphics.append(line)
-
-            # Draw Azimuth Label
-            l_lat = math.asin(math.sin(lat_rad) * math.cos(label_edge_r) +
-                             math.cos(lat_rad) * math.sin(label_edge_r) * math.cos(bearing))
-            l_lon = lon_rad + math.atan2(math.sin(bearing) * math.sin(label_edge_r) * math.cos(lat_rad),
-                                        math.cos(label_edge_r) - math.sin(lat_rad) * math.sin(l_lat))
-
-            text = f"{angle}\u00b0"
-            if angle == 0: text = "N"
-            elif angle == 90: text = "E"
-            elif angle == 180: text = "S"
-            elif angle == 270: text = "W"
-
-            # Create text label marker (using small icon to anchor text)
-            lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
-                                            text=text, font=("Helvetica", 18, "bold"),
-                                            text_color="#FFFFFF", marker_color_circle="#000000",
-                                            marker_color_outside="#000000", icon_radius=2)
-            self.azimuth_labels.append(lbl)
-
-        # Distance Labels (5km, 10km, 15km) along 150\u00b0 line
-        dist_bearing = math.radians(150)
-        for r_km in radii:
-            d_r = r_km / R
-            l_lat = math.asin(math.sin(lat_rad) * math.cos(d_r) +
-                             math.cos(lat_rad) * math.sin(d_r) * math.cos(dist_bearing))
-            l_lon = lon_rad + math.atan2(math.sin(dist_bearing) * math.sin(d_r) * math.cos(lat_rad),
-                                        math.cos(d_r) - math.sin(lat_rad) * math.sin(l_lat))
-
-            lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon),
-                                            text=f"{r_km}km", font=("Helvetica", 16, "bold"),
-                                            text_color="#FFFFFF", marker_color_circle="#000000",
-                                            marker_color_outside="#000000", icon_radius=2)
-            self.azimuth_labels.append(lbl)
+            # 3. Distance Labels along 165° bearing
+            br_dist = math.radians(165)
+            for r_km in [5, 10, 15]:
+                d_r = (r_km - 0.5) / R # Slightly inside ring
+                l_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br_dist))
+                l_lon = lon_rad + math.atan2(math.sin(br_dist)*math.sin(d_r)*math.cos(lat_rad),
+                                            math.cos(d_r)-math.sin(lat_rad)*math.sin(l_lat))
+                self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=f"{r_km}km",
+                                          font=("Arial", 14, "bold"), text_color="white",
+                                          marker_color_circle="black", icon_radius=3)
+        except Exception as e:
+            self.log(f"Overlay Error: {e}")
 
     def load_favorites(self):
         if os.path.exists(self.favorites_file):
