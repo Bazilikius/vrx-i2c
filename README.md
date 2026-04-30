@@ -38,11 +38,20 @@ pip install -r requirements.txt
 
 ### Usage
 
+#### CLI Version
 Run the script with the following arguments:
 
 ```bash
 python3 vtx_vrx_control.py --port /dev/ttyUSB0 --freq 1200 --power 1600
 ```
+
+#### GUI Version
+You can also use a graphical interface to control the VTX and VRX:
+
+```bash
+python3 vtx_vrx_gui.py
+```
+This requires `tkinter` to be installed on your system.
 
 #### Arguments:
 - `--port`: The serial port of your ESP32 (e.g., `COM3` on Windows, `/dev/ttyUSB0` on Linux).
