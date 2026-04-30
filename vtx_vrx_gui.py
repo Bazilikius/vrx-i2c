@@ -193,19 +193,39 @@ class VTXControllerGUI:
             o_raw = str(self.lon_var.get()).replace(',', '.')
             lat, lon = float(l_raw), float(o_raw)
 
-            # Full Reset
-            self.map_widget.delete_all_marker()
-            self.map_widget.delete_all_path()
+            # Robust Reset - using try-except for each method
+            try: self.map_widget.delete_all_marker()
+            except: pass
+            try: self.map_widget.delete_all_path()
+            except: pass
+
+            # Manual cleanup for objects stored in lists
+            for item in self.range_graphics:
+                try: item.delete()
+                except: pass
+            for item in self.azimuth_labels:
+                try: item.delete()
+                except: pass
+            if self.marker:
+                try: self.marker.delete()
+                except: pass
+
+            self.range_graphics = []
+            self.azimuth_labels = []
+
+            # Set Map Position and Zoom
             self.map_widget.set_position(lat, lon)
-            self.map_widget.set_zoom(12)
+            self.map_widget.set_zoom(11)
 
             # Draw Base Marker
-            self.map_widget.set_marker(lat, lon, text="SYSTEM BASE",
-                                      text_color="yellow", marker_color_circle="red")
+            self.marker = self.map_widget.set_marker(lat, lon, text="BASE",
+                                                    text_color="#FFFF00", # Yellow
+                                                    marker_color_circle="#FF0000",
+                                                    marker_color_outside="#FFFFFF")
 
-            # Draw Tactical Overlay
-            self.draw_enhanced_range_graphics(lat, lon)
-            self.log(f"Map: Center updated to {lat}, {lon}")
+            # Draw Tactical Overlay with delay
+            self.root.after(400, lambda: self.draw_enhanced_range_graphics(lat, lon))
+            self.log(f"Map updated: {lat}, {lon}")
         except Exception as e:
             self.log(f"Map Update Error: {e}")
 
@@ -218,54 +238,66 @@ class VTXControllerGUI:
             for r_km in [5, 10, 15]:
                 pts = []
                 d_r = r_km / R
-                for i in range(0, 361, 5):
+                for i in range(0, 361, 4): # 4 degree steps for rings
                     br = math.radians(i)
                     p_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br))
                     p_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r)*math.cos(lat_rad),
                                                 math.cos(d_r)-math.sin(lat_rad)*math.sin(p_lat))
                     pts.append((math.degrees(p_lat), math.degrees(p_lon)))
-                self.map_widget.set_path(pts, color="white", width=3)
+
+                path_obj = self.map_widget.set_path(pts, color="#FFFFFF", width=3)
+                self.range_graphics.append(path_obj)
 
             # 2. Azimuth Radials and Labels
             for angle in range(0, 360, 30):
                 br = math.radians(angle)
-                d_r = 15.0 / R
 
-                # Draw Radial Line
-                e_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br))
-                e_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r)*math.cos(lat_rad),
-                                            math.cos(d_r)-math.sin(lat_rad)*math.sin(e_lat))
-                self.map_widget.set_path([(lat, lon), (math.degrees(e_lat), math.degrees(e_lon))],
-                                         color="white", width=2)
+                # Draw Radial Line (from center to 15km) - using 5 segments for robustness
+                line_pts = []
+                for dist in [0, 3.75, 7.5, 11.25, 15.0]:
+                    d_r_step = dist / R
+                    p_lat = math.asin(math.sin(lat_rad)*math.cos(d_r_step) + math.cos(lat_rad)*math.sin(d_r_step)*math.cos(br))
+                    p_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r_step)*math.cos(lat_rad),
+                                                math.cos(d_r_step)-math.sin(lat_rad)*math.sin(p_lat))
+                    line_pts.append((math.degrees(p_lat), math.degrees(p_lon)))
 
-                # Label at 17.0 km
-                d_lbl = 17.0 / R
+                line_obj = self.map_widget.set_path(line_pts, color="#FFFFFF", width=3)
+                self.range_graphics.append(line_obj)
+
+                # Label position at 17.5 km (outside the 15km ring)
+                d_lbl = 17.5 / R
                 l_lat = math.asin(math.sin(lat_rad)*math.cos(d_lbl) + math.cos(lat_rad)*math.sin(d_lbl)*math.cos(br))
                 l_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_lbl)*math.cos(lat_rad),
                                             math.cos(d_lbl)-math.sin(lat_rad)*math.sin(l_lat))
 
-                txt = f"{angle}°"
+                txt = f"{angle}\u00b0" # Degree symbol
                 if angle == 0: txt = "N"
                 elif angle == 90: txt = "E"
                 elif angle == 180: txt = "S"
                 elif angle == 270: txt = "W"
 
-                self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=txt,
-                                          font=("Arial", 18, "bold"), text_color="white",
-                                          marker_color_circle="black", icon_radius=3)
+                # Use large bold font and visible marker anchor
+                lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=txt,
+                                                font=("Arial", 22, "bold"), text_color="#FFFFFF",
+                                                marker_color_circle="#000000", marker_color_outside="#FFFFFF",
+                                                icon_radius=5)
+                self.azimuth_labels.append(lbl)
 
-            # 3. Distance Labels along 165° bearing
-            br_dist = math.radians(165)
+            # 3. Distance Labels (along 165° line)
+            dist_br = math.radians(165)
             for r_km in [5, 10, 15]:
-                d_r = (r_km - 0.5) / R # Slightly inside ring
-                l_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br_dist))
-                l_lon = lon_rad + math.atan2(math.sin(br_dist)*math.sin(d_r)*math.cos(lat_rad),
+                d_r = (r_km - 0.5) / R
+                l_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(dist_br))
+                l_lon = lon_rad + math.atan2(math.sin(dist_br)*math.sin(d_r)*math.cos(lat_rad),
                                             math.cos(d_r)-math.sin(lat_rad)*math.sin(l_lat))
-                self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=f"{r_km}km",
-                                          font=("Arial", 14, "bold"), text_color="white",
-                                          marker_color_circle="black", icon_radius=3)
+
+                lbl = self.map_widget.set_marker(math.degrees(l_lat), math.degrees(l_lon), text=f"{r_km}km",
+                                                font=("Arial", 18, "bold"), text_color="#FFFFFF",
+                                                marker_color_circle="#000000", marker_color_outside="#FFFFFF",
+                                                icon_radius=5)
+                self.azimuth_labels.append(lbl)
         except Exception as e:
-            self.log(f"Overlay Error: {e}")
+            self.log(f"Overlay Logic Error: {e}")
 
     def load_favorites(self):
         if os.path.exists(self.favorites_file):
