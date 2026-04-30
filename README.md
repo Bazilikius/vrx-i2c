@@ -46,12 +46,16 @@ python3 vtx_vrx_control.py --port /dev/ttyUSB0 --freq 1200 --power 1600
 ```
 
 #### GUI Version
-You can also use a graphical interface to control the VTX and VRX:
+The graphical interface provides a convenient button-based control system:
 
 ```bash
 python3 vtx_vrx_gui.py
 ```
-This requires `tkinter` to be installed on your system.
+
+**GUI Layout:**
+- **VTX Column**: One-click buttons for standard 1.2GHz frequencies.
+- **Power Column**: Buttons for selecting VTX output power (25mW to 1600mW).
+- **VRX Grid**: A scrollable list of all bands and channels. Each button shows the Band, Channel, and Frequency.
 
 #### Arguments:
 - `--port`: The serial port of your ESP32 (e.g., `COM3` on Windows, `/dev/ttyUSB0` on Linux).

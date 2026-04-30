@@ -5,110 +5,112 @@ import serial
 import serial.tools.list_ports
 import time
 import threading
-from vtx_table import BAND_TABLE
+from vtx_table import BAND_TABLE, VTX_12G_TABLE
 
 class VTXControllerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("VTX/VRX Controller")
+        self.root.title("VTX/VRX Pro Controller")
         self.ser = None
 
-        # Main Frame
-        main_frame = ttk.Frame(root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Main Layout
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(1, weight=1)
 
-        # Connection Section
-        conn_frame = ttk.LabelFrame(main_frame, text="Connection", padding="5")
-        conn_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        # 1. Connection Bar (Top)
+        conn_frame = ttk.Frame(root, padding="5")
+        conn_frame.grid(row=0, column=0, sticky=(tk.W, tk.E))
 
-        ttk.Label(conn_frame, text="Serial Port:").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(conn_frame, text="Port:").pack(side=tk.LEFT)
         self.port_var = tk.StringVar()
-        self.port_combo = ttk.Combobox(conn_frame, textvariable=self.port_var)
+        self.port_combo = ttk.Combobox(conn_frame, textvariable=self.port_var, width=15)
         self.port_combo['values'] = [port.device for port in serial.tools.list_ports.comports()]
-        self.port_combo.grid(row=0, column=1, sticky=(tk.W, tk.E))
+        self.port_combo.pack(side=tk.LEFT, padx=5)
 
-        ttk.Button(conn_frame, text="Refresh", command=self.refresh_ports).grid(row=0, column=2, padx=5)
+        ttk.Button(conn_frame, text="⟳", width=3, command=self.refresh_ports).pack(side=tk.LEFT)
         self.connect_btn = ttk.Button(conn_frame, text="Connect", command=self.toggle_connection)
-        self.connect_btn.grid(row=0, column=3)
+        self.connect_btn.pack(side=tk.LEFT, padx=5)
 
         self.status_var = tk.StringVar(value="Disconnected")
-        ttk.Label(conn_frame, textvariable=self.status_var).grid(row=1, column=0, columnspan=4, sticky=tk.W)
+        ttk.Label(conn_frame, textvariable=self.status_var, foreground="blue").pack(side=tk.LEFT, padx=10)
 
-        # Tabs
-        self.notebook = ttk.Notebook(main_frame)
-        self.notebook.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        # 2. Main Control Area (Middle) - 3 Columns
+        control_frame = ttk.Frame(root, padding="5")
+        control_frame.grid(row=1, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
+        control_frame.columnconfigure(0, weight=1) # VTX Freq
+        control_frame.columnconfigure(1, weight=1) # VTX Power
+        control_frame.columnconfigure(2, weight=3) # VRX Freq (Wide)
+        control_frame.rowconfigure(0, weight=1)
 
-        # Tab 1: Frequency Control
-        freq_tab = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(freq_tab, text="Frequency Control")
+        # --- Column 1: VTX Frequency ---
+        vtx_freq_lf = ttk.LabelFrame(control_frame, text="VTX Frequency (1.2G)", padding="5")
+        vtx_freq_lf.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
+        for i, freq in enumerate(VTX_12G_TABLE):
+            btn = ttk.Button(vtx_freq_lf, text=f"{freq} MHz",
+                             command=lambda f=freq: self.send_command(f"V {f}"))
+            btn.pack(fill=tk.X, pady=2)
 
-        # Band/Channel Selection in Tab
-        ttk.Label(freq_tab, text="Band:").grid(row=0, column=0, sticky=tk.W)
-        self.band_var = tk.StringVar()
-        self.band_combo = ttk.Combobox(freq_tab, textvariable=self.band_var, values=list(BAND_TABLE.keys()), state="readonly")
-        self.band_combo.grid(row=0, column=1, sticky=(tk.W, tk.E))
-        self.band_combo.bind("<<ComboboxSelected>>", self.update_freq_from_table)
+        # --- Column 2: VTX Power ---
+        vtx_pwr_lf = ttk.LabelFrame(control_frame, text="VTX Power", padding="5")
+        vtx_pwr_lf.grid(row=0, column=1, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
+        power_levels = [25, 200, 400, 600, 1000, 1600]
+        for p in power_levels:
+            btn = ttk.Button(vtx_pwr_lf, text=f"{p} mW",
+                             command=lambda val=p: self.send_command(f"P {val}"))
+            btn.pack(fill=tk.X, pady=2)
 
-        ttk.Label(freq_tab, text="Channel:").grid(row=0, column=2, sticky=tk.W, padx=5)
-        self.chan_var = tk.StringVar()
-        self.chan_combo = ttk.Combobox(freq_tab, textvariable=self.chan_var, values=[str(i) for i in range(1, 9)], state="readonly", width=5)
-        self.chan_combo.grid(row=0, column=3, sticky=tk.W)
-        self.chan_combo.bind("<<ComboboxSelected>>", self.update_freq_from_table)
+        # --- Column 3: VRX Frequency (Scrollable) ---
+        vrx_freq_lf = ttk.LabelFrame(control_frame, text="VRX Frequency Select", padding="5")
+        vrx_freq_lf.grid(row=0, column=2, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
 
-        ttk.Label(freq_tab, text="Target Frequency (MHz):").grid(row=1, column=0, sticky=tk.W, pady=10)
-        self.freq_var = tk.StringVar(value="1200")
-        ttk.Entry(freq_tab, textvariable=self.freq_var).grid(row=1, column=1, sticky=(tk.W, tk.E))
+        canvas = tk.Canvas(vrx_freq_lf)
+        scrollbar = ttk.Scrollbar(vrx_freq_lf, orient="vertical", command=canvas.yview)
+        scroll_frame = ttk.Frame(canvas)
 
-        # Buttons for separate control
-        btn_frame = ttk.Frame(freq_tab)
-        btn_frame.grid(row=2, column=0, columnspan=4, pady=5)
+        scroll_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
 
-        ttk.Button(btn_frame, text="Set VTX Frequency", command=self.set_vtx_frequency).grid(row=0, column=0, padx=2)
-        ttk.Button(btn_frame, text="Set VRX Frequency", command=self.set_vrx_frequency).grid(row=0, column=1, padx=2)
-        ttk.Button(btn_frame, text="Set BOTH", command=self.set_both_frequency).grid(row=0, column=2, padx=2)
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Tab 2: VTX Power
-        power_tab = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(power_tab, text="VTX Power")
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
 
-        ttk.Label(power_tab, text="Preset Power (mW):").grid(row=0, column=0, columnspan=4, sticky=tk.W)
-        power_presets = [25, 200, 400, 600, 1000, 1600]
-        for i, p in enumerate(power_presets):
-            ttk.Button(power_tab, text=f"{p} mW", command=lambda val=p: self.set_power(val)).grid(row=1 + (i//3), column=i%3, padx=5, pady=5, sticky=(tk.W, tk.E))
+        # Populate VRX buttons from BAND_TABLE
+        row_idx = 0
+        for band, freqs in BAND_TABLE.items():
+            ttk.Label(scroll_frame, text=band, font=('Helvetica', 10, 'bold')).grid(row=row_idx, column=0, columnspan=4, sticky=tk.W, pady=(5,0))
+            row_idx += 1
+            for i, freq in enumerate(freqs):
+                btn_text = f"CH{i+1}\n{freq}"
+                btn = tk.Button(scroll_frame, text=btn_text, width=8, height=2,
+                                bg="#e1e1e1", activebackground="#4a90e2",
+                                command=lambda f=freq: self.send_command(f"R {f}"))
+                btn.grid(row=row_idx + (i // 4), column=i % 4, padx=2, pady=2)
+            row_idx += 2
 
-        ttk.Label(power_tab, text="Manual Entry (mW):").grid(row=3, column=0, sticky=tk.W, pady=10)
-        self.power_var = tk.StringVar(value="25")
-        ttk.Entry(power_tab, textvariable=self.power_var, width=10).grid(row=3, column=1, sticky=tk.W)
-        ttk.Button(power_tab, text="Set Manual", command=lambda: self.set_power()).grid(row=3, column=2, padx=5)
+        # 3. Console/Advanced (Bottom)
+        bottom_frame = ttk.Frame(root, padding="5")
+        bottom_frame.grid(row=2, column=0, sticky=(tk.W, tk.E))
 
-        # Tab 3: Advanced / I2C
-        adv_tab = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(adv_tab, text="Advanced")
+        # Log
+        log_frame = ttk.LabelFrame(bottom_frame, text="Console", padding="5")
+        log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.log_text = tk.Text(log_frame, height=6, width=50)
+        self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        log_scroll = ttk.Scrollbar(log_frame, command=self.log_text.yview)
+        log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.log_text.config(yscrollcommand=log_scroll.set)
 
-        ttk.Label(adv_tab, text="I2C SDA Pin:").grid(row=0, column=0, sticky=tk.W)
-        self.sda_var = tk.StringVar(value="21")
-        ttk.Entry(adv_tab, textvariable=self.sda_var, width=5).grid(row=0, column=1, sticky=tk.W)
-        ttk.Label(adv_tab, text="SCL Pin:").grid(row=0, column=2, sticky=tk.W)
-        self.scl_var = tk.StringVar(value="22")
-        ttk.Entry(adv_tab, textvariable=self.scl_var, width=5).grid(row=0, column=3, sticky=tk.W)
-        ttk.Button(adv_tab, text="Set Pins", command=self.set_i2c_pins).grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=5)
-
-        ttk.Label(adv_tab, text="VRX I2C Addr:").grid(row=2, column=0, sticky=tk.W)
+        # Advanced Tiny Frame
+        adv_frame = ttk.LabelFrame(bottom_frame, text="I2C", padding="5")
+        adv_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=5)
         self.addr_var = tk.StringVar(value="68")
-        ttk.Entry(adv_tab, textvariable=self.addr_var, width=5).grid(row=2, column=1, sticky=tk.W)
-        ttk.Button(adv_tab, text="Set Addr", command=self.set_address).grid(row=2, column=2, columnspan=2, sticky=(tk.W, tk.E))
-
-        ttk.Button(adv_tab, text="Scan I2C Bus", command=self.scan_i2c).grid(row=3, column=0, columnspan=4, pady=10, sticky=(tk.W, tk.E))
-
-        # Log Output
-        log_frame = ttk.LabelFrame(main_frame, text="Console Output", padding="5")
-        log_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
-
-        self.log_text = tk.Text(log_frame, height=8, width=60)
-        self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E))
-        scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        self.log_text['yscrollcommand'] = scrollbar.set
+        ttk.Entry(adv_frame, textvariable=self.addr_var, width=4).grid(row=0, column=0)
+        ttk.Button(adv_frame, text="Set", width=4, command=self.set_address).grid(row=0, column=1)
+        ttk.Button(adv_frame, text="Scan", width=8, command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
 
     def log(self, message):
         self.log_text.insert(tk.END, message + "\n")
@@ -126,12 +128,10 @@ class VTXControllerGUI:
         else:
             try:
                 port = self.port_var.get()
-                if not port:
-                    messagebox.showwarning("Warning", "Select a port.")
-                    return
+                if not port: return
                 self.ser = serial.Serial(port, 115200, timeout=0.1)
                 self.connect_btn.config(text="Disconnect")
-                self.status_var.set("Connected to " + port)
+                self.status_var.set("Connected")
                 self.log("Connected to " + port)
                 threading.Thread(target=self.read_serial, daemon=True).start()
             except Exception as e:
@@ -141,8 +141,7 @@ class VTXControllerGUI:
         while self.ser and self.ser.is_open:
             if self.ser.in_waiting:
                 line = self.ser.readline().decode('utf-8', errors='replace').strip()
-                if line:
-                    self.root.after(0, self.log, line)
+                if line: self.root.after(0, self.log, line)
             time.sleep(0.01)
 
     def send_command(self, cmd):
@@ -152,33 +151,8 @@ class VTXControllerGUI:
         else:
             messagebox.showwarning("Warning", "Not connected.")
 
-    def update_freq_from_table(self, event=None):
-        band = self.band_var.get()
-        chan = self.chan_var.get()
-        if band and chan:
-            freq = BAND_TABLE[band][int(chan) - 1]
-            self.freq_var.set(str(freq))
-
-    def set_vtx_frequency(self):
-        self.send_command(f"V {self.freq_var.get()}")
-
-    def set_vrx_frequency(self):
-        self.send_command(f"R {self.freq_var.get()}")
-
-    def set_both_frequency(self):
-        self.send_command(f"F {self.freq_var.get()}")
-
-    def set_power(self, val=None):
-        if val is not None:
-            self.send_command(f"P {val}")
-        else:
-            self.send_command(f"P {self.power_var.get()}")
-
     def set_address(self):
         self.send_command(f"A {self.addr_var.get()}")
-
-    def set_i2c_pins(self):
-        self.send_command(f"I {self.sda_var.get()} {self.scl_var.get()}")
 
     def scan_i2c(self):
         self.send_command("S")
