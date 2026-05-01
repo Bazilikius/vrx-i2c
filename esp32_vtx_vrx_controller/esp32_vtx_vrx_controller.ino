@@ -10,6 +10,31 @@
 int i2c_sda_pin = 21;
 int i2c_scl_pin = 22;
 
+// Servo Configuration (270 Degree)
+int servo_pin = 13;
+const int servo_channel = 0;
+const int servo_freq = 50;
+const int servo_res = 16;
+volatile int current_servo_angle = 135; // Default to center of 270
+
+// Encoder Configuration
+const int encoder_clk = 34;
+const int encoder_dt = 35;
+volatile int encoder_pos = 0;
+unsigned long last_encoder_report = 0;
+
+// Keypad Configuration (4x4 Matrix)
+const int ROW_PINS[4] = {32, 33, 25, 26};
+const int COL_PINS[4] = {27, 14, 4, 5};
+char keys[4][4] = {
+  {'1','2','3','A'},
+  {'4','5','6','B'},
+  {'7','8','9','C'},
+  {'*','0','#','D'}
+};
+unsigned long last_key_time = 0;
+const int debounce_ms = 300;
+
 // Default I2C address for VRX (can be changed via command)
 // User provided: 8 bit - 0xD0, 7 bit - 0x68
 uint8_t vrx_i2c_addr = 0x68;
@@ -89,6 +114,63 @@ void scanI2C() {
   }
 }
 
+void setServoAngle(int angle) {
+  if (angle < 0) angle = 0;
+  if (angle > 270) angle = 270;
+  current_servo_angle = angle;
+
+  // Mapping 0-270 to 500us-2500us (Standard servo range)
+  // 50Hz period is 20ms. 16-bit resolution is 65535.
+  // duty = (pulse_us / 20000) * 65535
+  // 500us -> 1638, 2500us -> 8191
+  uint32_t duty = map(angle, 0, 270, 1638, 8191);
+  ledcWrite(servo_channel, duty);
+  // PC expects format A: <angle> for feedback
+  Serial.printf("A: %d\n", current_servo_angle);
+}
+
+void IRAM_ATTR readEncoder() {
+  int dt_val = digitalRead(encoder_dt);
+  if (dt_val == LOW) {
+    current_servo_angle++;
+  } else {
+    current_servo_angle--;
+  }
+  if (current_servo_angle < 0) current_servo_angle = 0;
+  if (current_servo_angle > 270) current_servo_angle = 270;
+}
+
+void checkKeypad() {
+  if (millis() - last_key_time < debounce_ms) return;
+
+  for (int c = 0; c < 4; c++) {
+    // Columns as outputs
+    pinMode(COL_PINS[c], OUTPUT);
+    digitalWrite(COL_PINS[c], LOW);
+
+    for (int r = 0; r < 4; r++) {
+      if (digitalRead(ROW_PINS[r]) == LOW) {
+        char key = keys[r][c];
+        Serial.printf("Keypad: Pressed %c\n", key);
+        processKey(key);
+        last_key_time = millis();
+      }
+    }
+    digitalWrite(COL_PINS[c], HIGH);
+    pinMode(COL_PINS[c], INPUT_PULLUP);
+  }
+}
+
+void processKey(char key) {
+  if (key == '8') setServoAngle(current_servo_angle + 5);
+  else if (key == '2') setServoAngle(current_servo_angle - 5);
+  else if (key == '4') setServoAngle(current_servo_angle - 20);
+  else if (key == '6') setServoAngle(current_servo_angle + 20);
+  else if (key == '5') setServoAngle(135); // Center of 270
+  else if (key == '*') setServoAngle(0);
+  else if (key == '#') setServoAngle(270);
+}
+
 void setup() {
   // USB Serial for PC communication
   Serial.begin(115200);
@@ -99,18 +181,45 @@ void setup() {
   // I2C for VRX
   Wire.begin(i2c_sda_pin, i2c_scl_pin);
 
-  Serial.println("ESP32 VTX/VRX Controller Initialized");
+  // Servo Setup
+  ledcSetup(servo_channel, servo_freq, servo_res);
+  ledcAttachPin(servo_pin, servo_channel);
+  setServoAngle(135); // Default to center
+
+  // Encoder Setup
+  pinMode(encoder_clk, INPUT_PULLUP);
+  pinMode(encoder_dt, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(encoder_clk), readEncoder, FALLING);
+
+  // Keypad Setup
+  for (int i = 0; i < 4; i++) {
+    pinMode(ROW_PINS[i], INPUT_PULLUP);
+    pinMode(COL_PINS[i], INPUT_PULLUP);
+  }
+
+  Serial.println("ESP32 VTX/VRX/Servo/Keypad Controller Initialized");
   Serial.println("Commands:");
   Serial.println("  V <freq_mhz> - Set ONLY VTX frequency");
   Serial.println("  R <freq_mhz> - Set ONLY VRX frequency");
   Serial.println("  F <freq_mhz> - Set BOTH VTX & VRX frequency");
   Serial.println("  P <power_mw> - Set VTX power");
+  Serial.println("  X <angle>    - Set Servo angle (0-270)");
   Serial.println("  A <i2c_addr> - Set VRX I2C address (hex, e.g. A 68)");
   Serial.println("  I <sda> <scl>- Set I2C pins");
+  Serial.println("  J <pin>      - Set Servo pin");
   Serial.println("  S            - Scan I2C bus");
 }
 
 void loop() {
+  checkKeypad();
+
+  // Update servo if encoder changed (or just keep in sync)
+  static int last_angle = -1;
+  if (current_servo_angle != last_angle) {
+    setServoAngle(current_servo_angle);
+    last_angle = current_servo_angle;
+  }
+
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
     input.trim();
@@ -160,6 +269,17 @@ void loop() {
         Wire.end();
         Wire.begin(i2c_sda_pin, i2c_scl_pin);
         Serial.printf("I2C pins set to SDA:%d, SCL:%d\n", i2c_sda_pin, i2c_scl_pin);
+      }
+    } else if (cmd == 'X') {
+      int angle = arg.toInt();
+      setServoAngle(angle);
+    } else if (cmd == 'J') {
+      int pin = arg.toInt();
+      if (pin >= 0) {
+        ledcDetachPin(servo_pin);
+        servo_pin = pin;
+        ledcAttachPin(servo_pin, servo_channel);
+        Serial.printf("Servo pin set to %d\n", servo_pin);
       }
     } else if (cmd == 'S') {
       scanI2C();

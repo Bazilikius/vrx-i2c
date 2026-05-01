@@ -4,6 +4,8 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 
 - **VTX:** Rush 1.2/1.3GHz 1.6W (IRC Tramp protocol)
 - **VRX:** Controlled via I2C (16-bit little-endian frequency mapping)
+- **Servo:** Digital Servo control (PWM 50Hz, 270° range)
+- **Feedback:** Rotary Encoder and 4x4 Keypad support
 
 ## Hardware Connections
 
@@ -17,6 +19,20 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 - **VRX SCL** -> ESP32 **GPIO 22 (SCL)**
 - **GND** -> ESP32 **GND**
 - **VRX Power** -> External Power Source (ensure common GND)
+
+### ESP32 to Servo
+- **Servo Signal** -> ESP32 **GPIO 13**
+- **GND** -> ESP32 **GND**
+- **VCC** -> External 5V Power Source (ensure common GND)
+
+### ESP32 to Rotary Encoder
+- **CLK** -> ESP32 **GPIO 34**
+- **DT** -> ESP32 **GPIO 35**
+- **GND** -> ESP32 **GND**
+
+### ESP32 to 4x4 Keypad
+- **Rows [1-4]** -> ESP32 **GPIO 32, 33, 25, 26**
+- **Cols [1-4]** -> ESP32 **GPIO 27, 14, 4, 5**
 
 ## ESP32 Firmware
 
@@ -49,6 +65,12 @@ python3 vtx_vrx_control.py --port /dev/ttyUSB0 --freq 1200 --power 1600
 #### GUI Version
 The graphical interface provides a convenient button-based control system:
 
+**Hotkeys:**
+- **Numpad 8 / 2**: Servo +5° / -5°
+- **Numpad 6 / 4**: Servo +20° / -20°
+- **Numpad 5**: Center Servo (135°)
+- **Numpad * / /**: Set Servo to 0° / 270°
+
 ```bash
 python3 vtx_vrx_gui.py
 ```
@@ -73,6 +95,7 @@ python3 vtx_vrx_gui.py
 - `--band`: Band name (e.g., "Band A", "Band R").
 - `--chan`: Channel number (1-8).
 - `--power`: VTX output power in mW (e.g., 25, 200, 1600).
+- `--servo`: Set Digital Servo angle (0-180).
 - `--addr`: (Optional) Change the VRX I2C address (hex, default: `68`).
 - `--scan`: (Optional) Scan the I2C bus to find the VRX address.
 

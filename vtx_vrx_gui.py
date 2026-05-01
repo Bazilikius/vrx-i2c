@@ -77,6 +77,28 @@ class VTXControllerGUI:
                              command=lambda val=p: self.send_command(f"P {val}"))
             btn.pack(fill=tk.X, pady=1)
 
+        # Servo Control (270 Degree)
+        servo_lf = ttk.LabelFrame(vtx_side_frame, text="Servo Control (270°)", padding="5")
+        servo_lf.pack(fill=tk.X, padx=5, pady=5)
+
+        self.servo_var = tk.IntVar(value=135)
+        self.servo_scale = ttk.Scale(servo_lf, from_=0, to=270, orient=tk.HORIZONTAL,
+                                    variable=self.servo_var, command=self.update_servo)
+        self.servo_scale.pack(fill=tk.X, padx=5, pady=5)
+
+        servo_label_frame = ttk.Frame(servo_lf)
+        servo_label_frame.pack(fill=tk.X)
+        ttk.Label(servo_label_frame, text="0°").pack(side=tk.LEFT)
+        self.servo_val_lbl = ttk.Label(servo_label_frame, text="135°", font=('Helvetica', 10, 'bold'))
+        self.servo_val_lbl.pack(side=tk.LEFT, expand=True)
+        ttk.Label(servo_label_frame, text="270°").pack(side=tk.RIGHT)
+
+        servo_presets = ttk.Frame(servo_lf)
+        servo_presets.pack(fill=tk.X, pady=5)
+        for angle in [0, 135, 270]:
+            ttk.Button(servo_presets, text=f"{angle}°", width=5,
+                       command=lambda a=angle: self.set_servo_preset(a)).pack(side=tk.LEFT, expand=True, padx=2)
+
         # VRX Grid (3 Columns)
         vrx_main_lf = ttk.LabelFrame(control_tab, text="VRX Channels", padding="5")
         vrx_main_lf.grid(row=0, column=1, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
@@ -167,6 +189,19 @@ class VTXControllerGUI:
         self.map_widget.add_right_click_menu_command(label="Set System Location", command=self.add_marker_event, pass_coords=True)
 
         self.update_favorites_display()
+
+        # Bind keyboard numpad for servo control
+        self.root.bind("<KP_8>", lambda e: self.adjust_servo(5))
+        self.root.bind("<KP_2>", lambda e: self.adjust_servo(-5))
+        self.root.bind("<KP_6>", lambda e: self.adjust_servo(20))
+        self.root.bind("<KP_4>", lambda e: self.adjust_servo(-20))
+        self.root.bind("<KP_5>", lambda e: self.set_servo_preset(135))
+        self.root.bind("<KP_Multiply>", lambda e: self.set_servo_preset(0))
+        self.root.bind("<KP_Divide>", lambda e: self.set_servo_preset(270))
+
+    def adjust_servo(self, delta):
+        new_angle = self.servo_var.get() + delta
+        self.set_servo_preset(new_angle)
 
     def on_map_interaction(self, event=None):
         # Schedule redraw if zoom changed
@@ -410,8 +445,19 @@ class VTXControllerGUI:
         while self.ser and self.ser.is_open:
             if self.ser.in_waiting:
                 line = self.ser.readline().decode('utf-8', errors='replace').strip()
-                if line: self.root.after(0, self.log, line)
+                if line:
+                    self.root.after(0, self.log, line)
+                    # Parse feedback A: <angle>
+                    if line.startswith("A:"):
+                        try:
+                            angle = int(line.split(":")[1].strip())
+                            self.root.after(0, self.update_gui_servo, angle)
+                        except: pass
             time.sleep(0.01)
+
+    def update_gui_servo(self, angle):
+        self.servo_var.set(angle)
+        self.servo_val_lbl.config(text=f"{angle}°")
 
     def send_command(self, cmd):
         if self.ser and self.ser.is_open:
@@ -425,6 +471,16 @@ class VTXControllerGUI:
 
     def scan_i2c(self):
         self.send_command("S")
+
+    def update_servo(self, val):
+        angle = int(float(val))
+        self.servo_val_lbl.config(text=f"{angle}°")
+        # Use a debounce or rate limit if needed, but for now direct
+        self.send_command(f"X {angle}")
+
+    def set_servo_preset(self, angle):
+        self.servo_var.set(angle)
+        self.update_servo(angle)
 
 if __name__ == "__main__":
     root = tk.Tk()

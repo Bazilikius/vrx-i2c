@@ -15,6 +15,7 @@ def main():
     parser.add_argument('--band', help='Band name (e.g., "Band A", "Band R")')
     parser.add_argument('--chan', type=int, help='Channel number (1-8)')
     parser.add_argument('--power', type=int, help='VTX power in mW')
+    parser.add_argument('--servo', type=int, help='Set Servo angle (0-180)')
     parser.add_argument('--addr', help='VRX I2C address in hex (e.g., 54)')
     parser.add_argument('--sda', type=int, help='I2C SDA pin')
     parser.add_argument('--scl', type=int, help='I2C SCL pin')
@@ -63,6 +64,13 @@ def main():
         if freq:
             ser.write(f"F {freq}\n".encode())
             print(f"Sent: Set BOTH Frequency to {freq} MHz")
+            time.sleep(0.1)
+            while ser.in_waiting:
+                print(ser.readline().decode().strip())
+
+        if args.servo is not None:
+            ser.write(f"X {args.servo}\n".encode())
+            print(f"Sent: Set Servo angle to {args.servo}°")
             time.sleep(0.1)
             while ser.in_waiting:
                 print(ser.readline().decode().strip())
