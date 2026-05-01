@@ -104,6 +104,8 @@ class VTXControllerGUI:
         az_frame.pack(fill=tk.X, pady=5)
         ttk.Label(az_frame, text="Ref Azimuth:").pack(side=tk.LEFT)
         self.ref_az_var = tk.IntVar(value=0)
+        # Update map when Reference Azimuth changes
+        self.ref_az_var.trace_add("write", lambda *args: self.refresh_map_overlay())
         ttk.Entry(az_frame, textvariable=self.ref_az_var, width=5).pack(side=tk.LEFT, padx=5)
         ttk.Button(az_frame, text="🏠 Home", width=7, command=lambda: self.send_command("H")).pack(side=tk.RIGHT)
 
@@ -213,6 +215,9 @@ class VTXControllerGUI:
 
         self.root.bind("<Left>", lambda e: self.adjust_servo(-5))
         self.root.bind("<Right>", lambda e: self.adjust_servo(5))
+        # Ensure arrows work when map is focused
+        self.map_widget.canvas.bind("<Left>", lambda e: self.adjust_servo(-5))
+        self.map_widget.canvas.bind("<Right>", lambda e: self.adjust_servo(5))
 
         # 3. Console/Advanced (Bottom)
         bottom_frame = ttk.Frame(root, padding="5")
@@ -265,22 +270,9 @@ class VTXControllerGUI:
             o_raw = str(self.lon_var.get()).replace(',', '.')
             lat, lon = float(l_raw), float(o_raw)
 
-            # Robust Reset - using try-except for each method
-            try: self.map_widget.delete_all_marker()
-            except: pass
-            try: self.map_widget.delete_all_path()
-            except: pass
-
-            # Manual cleanup for objects stored in lists
-            for item in self.range_graphics:
-                try: item.delete()
-                except: pass
-            for item in self.azimuth_labels:
-                try: item.delete()
-                except: pass
-            if self.marker:
-                try: self.marker.delete()
-                except: pass
+            # Robust Reset
+            self.map_widget.delete_all_marker()
+            self.map_widget.delete_all_path()
 
             self.range_graphics = []
             self.azimuth_labels = []
@@ -289,31 +281,24 @@ class VTXControllerGUI:
             self.map_widget.set_position(lat, lon)
             self.map_widget.set_zoom(11)
 
-            # Draw Base Marker
-            self.marker = self.map_widget.set_marker(lat, lon, text="BASE",
-                                                    text_color="#FFFF00", # Yellow
-                                                    marker_color_circle="#FF0000",
-                                                    marker_color_outside="#FFFFFF")
-
-            # Force UI update before drawing overlay
-            self.root.update_idletasks()
-
-            # Draw Tactical Overlay
+            # Draw Tactical Overlay (Redraws marker inside)
             self.draw_enhanced_range_graphics(lat, lon)
             self.log(f"Map updated: {lat}, {lon}")
         except Exception as e:
             self.log(f"Map Update Error: {e}")
 
     def draw_enhanced_range_graphics(self, lat, lon):
-        # Explicitly cleanup only graphics and azimuth labels
-        for g in self.range_graphics:
-            try: g.delete()
-            except: pass
-        for l in self.azimuth_labels:
-            try: l.delete()
-            except: pass
+        # Clear paths and markers
+        self.map_widget.delete_all_path()
+        self.map_widget.delete_all_marker()
         self.range_graphics = []
         self.azimuth_labels = []
+
+        # Redraw Center Marker
+        self.marker = self.map_widget.set_marker(lat, lon, text="BASE",
+                                                text_color="#FFFF00",
+                                                marker_color_circle="#FF0000",
+                                                marker_color_outside="#FFFFFF")
 
         try:
             R = 6371.0 # Earth radius in km
@@ -507,7 +492,9 @@ class VTXControllerGUI:
 
     def update_gui_servo(self, angle):
         self.servo_var.set(angle)
-        self.servo_val_lbl.config(text=f"{angle}°")
+        ref_az = self.ref_az_var.get()
+        actual_az = (ref_az + angle) % 360
+        self.servo_val_lbl.config(text=f"{actual_az}° (Rel: {angle}°)")
         self.refresh_map_overlay()
 
     def refresh_map_overlay(self):
@@ -532,7 +519,9 @@ class VTXControllerGUI:
 
     def update_servo(self, val):
         angle = int(float(val))
-        self.servo_val_lbl.config(text=f"{angle}°")
+        ref_az = self.ref_az_var.get()
+        actual_az = (ref_az + angle) % 360
+        self.servo_val_lbl.config(text=f"{actual_az}° (Rel: {angle}°)")
         self.send_command(f"X {angle}")
         # Update map needle
         self.refresh_map_overlay()
