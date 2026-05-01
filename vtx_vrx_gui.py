@@ -239,8 +239,11 @@ class VTXControllerGUI:
         ttk.Button(adv_frame, text="Scan", command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
 
     def adjust_servo(self, delta):
-        new_angle = self.servo_var.get() + delta
-        self.set_servo_preset(new_angle)
+        try:
+            curr = self.servo_var.get()
+        except:
+            curr = 135
+        self.set_servo_preset(curr + delta)
 
     def on_map_interaction(self, event=None):
         # Schedule redraw if zoom changed
@@ -252,8 +255,11 @@ class VTXControllerGUI:
             self.last_zoom = current_zoom
             # Redraw only overlay graphics
             try:
-                lat = float(self.lat_var.get().replace(',', '.'))
-                lon = float(self.lon_var.get().replace(',', '.'))
+                lat_str = self.lat_var.get().replace(',', '.')
+                lon_str = self.lon_var.get().replace(',', '.')
+                if not lat_str or not lon_str: return
+                lat = float(lat_str)
+                lon = float(lon_str)
                 # Clear graphics but keep center marker if possible or just redraw everything
                 self.draw_enhanced_range_graphics(lat, lon)
             except: pass
@@ -268,6 +274,7 @@ class VTXControllerGUI:
             # Parse coordinates (handle comma/dot)
             l_raw = str(self.lat_var.get()).replace(',', '.')
             o_raw = str(self.lon_var.get()).replace(',', '.')
+            if not l_raw or not o_raw: return
             lat, lon = float(l_raw), float(o_raw)
 
             # Robust Reset
@@ -301,6 +308,12 @@ class VTXControllerGUI:
                                                 marker_color_outside="#FFFFFF")
 
         try:
+            # Safe get for variables that might be in flux during typing
+            try: ref_az = self.ref_az_var.get()
+            except: ref_az = 0
+            try: curr_angle = self.servo_var.get()
+            except: curr_angle = 135
+
             R = 6371.0 # Earth radius in km
             lat_rad, lon_rad = math.radians(lat), math.radians(lon)
 
@@ -361,7 +374,6 @@ class VTXControllerGUI:
                 self.azimuth_labels.append(lbl)
 
             # 4. Rotation Sector (270°)
-            ref_az = self.ref_az_var.get()
             sector_pts = []
             for deg in range(0, 271, 5):
                 angle_deg = (ref_az + deg) % 360
@@ -380,7 +392,6 @@ class VTXControllerGUI:
             self.range_graphics.append(self.map_widget.set_path(sector_pts, color="#FFFF00", width=2))
 
             # 5. Current Azimuth Needle
-            curr_angle = self.servo_var.get()
             needle_deg = (ref_az + curr_angle) % 360
             br_needle = math.radians(needle_deg)
             d_r_needle = 15.5 / R # Slightly outside the 15km ring
@@ -492,15 +503,19 @@ class VTXControllerGUI:
 
     def update_gui_servo(self, angle):
         self.servo_var.set(angle)
-        ref_az = self.ref_az_var.get()
+        try: ref_az = self.ref_az_var.get()
+        except: ref_az = 0
         actual_az = (ref_az + angle) % 360
         self.servo_val_lbl.config(text=f"{actual_az}° (Rel: {angle}°)")
         self.refresh_map_overlay()
 
     def refresh_map_overlay(self):
         try:
-            lat = float(self.lat_var.get().replace(',', '.'))
-            lon = float(self.lon_var.get().replace(',', '.'))
+            lat_str = self.lat_var.get().replace(',', '.')
+            lon_str = self.lon_var.get().replace(',', '.')
+            if not lat_str or not lon_str: return
+            lat = float(lat_str)
+            lon = float(lon_str)
             self.draw_enhanced_range_graphics(lat, lon)
         except: pass
 
@@ -518,13 +533,16 @@ class VTXControllerGUI:
         self.send_command("S")
 
     def update_servo(self, val):
-        angle = int(float(val))
-        ref_az = self.ref_az_var.get()
-        actual_az = (ref_az + angle) % 360
-        self.servo_val_lbl.config(text=f"{actual_az}° (Rel: {angle}°)")
-        self.send_command(f"X {angle}")
-        # Update map needle
-        self.refresh_map_overlay()
+        try:
+            angle = int(float(val))
+            try: ref_az = self.ref_az_var.get()
+            except: ref_az = 0
+            actual_az = (ref_az + angle) % 360
+            self.servo_val_lbl.config(text=f"{actual_az}° (Rel: {angle}°)")
+            self.send_command(f"X {angle}")
+            # Update map needle
+            self.refresh_map_overlay()
+        except: pass
 
     def set_servo_preset(self, angle):
         self.servo_var.set(angle)
