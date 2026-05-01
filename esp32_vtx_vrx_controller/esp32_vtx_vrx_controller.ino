@@ -127,7 +127,7 @@ void setServoAngle(int angle) {
   // 50Hz period is 20ms. 16-bit resolution is 65535.
   // 500us -> 1638, 2500us -> 8191
   uint32_t duty = map(angle, 0, 270, 1638, 8191);
-  ledcWrite(servo_channel, duty);
+  ledcWrite(servo_pin, duty); // ESP32 Core 3.0+ uses pin instead of channel
   // PC expects format A: <angle> for feedback
   Serial.printf("A: %d\n", current_servo_angle);
 }
@@ -216,9 +216,8 @@ void setup() {
   // I2C for VRX
   Wire.begin(i2c_sda_pin, i2c_scl_pin);
 
-  // Servo Setup
-  ledcSetup(servo_channel, servo_freq, servo_res);
-  ledcAttachPin(servo_pin, servo_channel);
+  // Servo Setup (Compatible with ESP32 Core 3.0+)
+  ledcAttach(servo_pin, servo_freq, servo_res);
   setServoAngle(135); // Default to center
 
   // Encoder Setup
@@ -316,9 +315,9 @@ void loop() {
     } else if (cmd == 'J') {
       int pin = arg.toInt();
       if (pin >= 0) {
-        ledcDetachPin(servo_pin);
+        ledcDetach(servo_pin);
         servo_pin = pin;
-        ledcAttachPin(servo_pin, servo_channel);
+        ledcAttach(servo_pin, servo_freq, servo_res);
         Serial.printf("Servo pin set to %d\n", servo_pin);
       }
     } else if (cmd == 'H') {
