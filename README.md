@@ -5,7 +5,8 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 - **VTX:** Rush 1.2/1.3GHz 1.6W (IRC Tramp protocol)
 - **VRX:** Controlled via I2C (16-bit little-endian frequency mapping)
 - **Servo:** Digital Servo control (PWM 50Hz, 270° range)
-- **Feedback:** Rotary Encoder and 4x4 Keypad support
+- **Feedback:** Rotary Encoder, 4x4 Keypad, and Limit Switch support
+- **Power:** MOSFET System Power control
 
 ## Hardware Connections
 
@@ -33,6 +34,10 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 ### ESP32 to 4x4 Keypad
 - **Rows [1-4]** -> ESP32 **GPIO 32, 33, 25, 26**
 - **Cols [1-4]** -> ESP32 **GPIO 27, 14, 4, 5**
+
+### ESP32 to Limit Switch & MOSFET
+- **Limit Switch (Left)** -> ESP32 **GPIO 12** (GND when triggered)
+- **MOSFET Gate** -> ESP32 **GPIO 2**
 
 ## ESP32 Firmware
 
@@ -66,6 +71,7 @@ python3 vtx_vrx_control.py --port /dev/ttyUSB0 --freq 1200 --power 1600
 The graphical interface provides a convenient button-based control system:
 
 **Hotkeys:**
+- **Left / Right Arrows**: Servo -5° / +5°
 - **Numpad 8 / 2**: Servo +5° / -5°
 - **Numpad 6 / 4**: Servo +20° / -20°
 - **Numpad 5**: Center Servo (135°)
@@ -95,7 +101,9 @@ python3 vtx_vrx_gui.py
 - `--band`: Band name (e.g., "Band A", "Band R").
 - `--chan`: Channel number (1-8).
 - `--power`: VTX output power in mW (e.g., 25, 200, 1600).
-- `--servo`: Set Digital Servo angle (0-180).
+- `--servo`: Set Digital Servo angle (0-270).
+- `--home`: Execute Servo Homing sequence (Calibration).
+- `--mosfet`: Set MOSFET Power (0=OFF, 1=ON).
 - `--addr`: (Optional) Change the VRX I2C address (hex, default: `68`).
 - `--scan`: (Optional) Scan the I2C bus to find the VRX address.
 

@@ -17,11 +17,15 @@ const int servo_freq = 50;
 const int servo_res = 16;
 volatile int current_servo_angle = 135; // Default to center of 270
 
-// Encoder Configuration
+// Encoder Configuration (KY-040)
 const int encoder_clk = 34;
 const int encoder_dt = 35;
 volatile int encoder_pos = 0;
 unsigned long last_encoder_report = 0;
+
+// Homing and Power Pins
+const int limit_switch_pin = 12;
+const int mosfet_pin = 2;
 
 // Keypad Configuration (4x4 Matrix)
 const int ROW_PINS[4] = {32, 33, 25, 26};
@@ -121,7 +125,6 @@ void setServoAngle(int angle) {
 
   // Mapping 0-270 to 500us-2500us (Standard servo range)
   // 50Hz period is 20ms. 16-bit resolution is 65535.
-  // duty = (pulse_us / 20000) * 65535
   // 500us -> 1638, 2500us -> 8191
   uint32_t duty = map(angle, 0, 270, 1638, 8191);
   ledcWrite(servo_channel, duty);
@@ -129,12 +132,44 @@ void setServoAngle(int angle) {
   Serial.printf("A: %d\n", current_servo_angle);
 }
 
+void performHoming() {
+  Serial.println("Homing sequence started...");
+
+  // 1. Safety move: Take 10 steps to the right
+  Serial.println("Step 1: Safety move right...");
+  int start_angle = current_servo_angle;
+  setServoAngle(start_angle + 10);
+  delay(500);
+
+  // 2. Check if limit switch is already activated (danger zone)
+  if (digitalRead(limit_switch_pin) == LOW) {
+    Serial.println("ERROR: Limit switch triggered unexpectedly. Jamming prevented.");
+    return;
+  }
+
+  // 3. Move left slowly until limit switch is triggered
+  Serial.println("Step 2: Moving left to home...");
+  for (int a = current_servo_angle; a >= -10; a--) {
+    setServoAngle(a);
+    delay(50);
+    if (digitalRead(limit_switch_pin) == LOW) {
+      Serial.println("Step 3: Home reached.");
+      current_servo_angle = 0;
+      setServoAngle(0);
+      return;
+    }
+  }
+  Serial.println("ERROR: Home not found.");
+}
+
 void IRAM_ATTR readEncoder() {
+  // KY-040 Encoder Logic (20 pulses per 360 degrees)
+  // One click is 13.5 degrees (270 / 20)
   int dt_val = digitalRead(encoder_dt);
   if (dt_val == LOW) {
-    current_servo_angle++;
+    current_servo_angle += 13; // Approx step
   } else {
-    current_servo_angle--;
+    current_servo_angle -= 13;
   }
   if (current_servo_angle < 0) current_servo_angle = 0;
   if (current_servo_angle > 270) current_servo_angle = 270;
@@ -190,6 +225,11 @@ void setup() {
   pinMode(encoder_clk, INPUT_PULLUP);
   pinMode(encoder_dt, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(encoder_clk), readEncoder, FALLING);
+
+  // Homing and Power Setup
+  pinMode(limit_switch_pin, INPUT_PULLUP);
+  pinMode(mosfet_pin, OUTPUT);
+  digitalWrite(mosfet_pin, HIGH); // Default power ON
 
   // Keypad Setup
   for (int i = 0; i < 4; i++) {
@@ -281,6 +321,12 @@ void loop() {
         ledcAttachPin(servo_pin, servo_channel);
         Serial.printf("Servo pin set to %d\n", servo_pin);
       }
+    } else if (cmd == 'H') {
+      performHoming();
+    } else if (cmd == 'M') {
+      int state = arg.toInt();
+      digitalWrite(mosfet_pin, state == 1 ? HIGH : LOW);
+      Serial.printf("System Power: %s\n", state == 1 ? "ON" : "OFF");
     } else if (cmd == 'S') {
       scanI2C();
     } else {

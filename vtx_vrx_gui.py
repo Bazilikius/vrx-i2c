@@ -99,6 +99,18 @@ class VTXControllerGUI:
             ttk.Button(servo_presets, text=f"{angle}°", width=5,
                        command=lambda a=angle: self.set_servo_preset(a)).pack(side=tk.LEFT, expand=True, padx=2)
 
+        # Tactical Azimuth & Homing
+        az_frame = ttk.Frame(servo_lf)
+        az_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(az_frame, text="Ref Azimuth:").pack(side=tk.LEFT)
+        self.ref_az_var = tk.IntVar(value=0)
+        ttk.Entry(az_frame, textvariable=self.ref_az_var, width=5).pack(side=tk.LEFT, padx=5)
+        ttk.Button(az_frame, text="🏠 Home", width=7, command=lambda: self.send_command("H")).pack(side=tk.RIGHT)
+
+        self.power_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(servo_lf, text="System Power (MOSFET)", variable=self.power_var,
+                        command=lambda: self.send_command(f"M {1 if self.power_var.get() else 0}")).pack(pady=5)
+
         # VRX Grid (3 Columns)
         vrx_main_lf = ttk.LabelFrame(control_tab, text="VRX Channels", padding="5")
         vrx_main_lf.grid(row=0, column=1, sticky=(tk.N, tk.S, tk.E, tk.W), padx=5)
@@ -190,7 +202,7 @@ class VTXControllerGUI:
 
         self.update_favorites_display()
 
-        # Bind keyboard numpad for servo control
+        # Bind keyboard numpad and arrows for servo control
         self.root.bind("<KP_8>", lambda e: self.adjust_servo(5))
         self.root.bind("<KP_2>", lambda e: self.adjust_servo(-5))
         self.root.bind("<KP_6>", lambda e: self.adjust_servo(20))
@@ -198,6 +210,28 @@ class VTXControllerGUI:
         self.root.bind("<KP_5>", lambda e: self.set_servo_preset(135))
         self.root.bind("<KP_Multiply>", lambda e: self.set_servo_preset(0))
         self.root.bind("<KP_Divide>", lambda e: self.set_servo_preset(270))
+
+        self.root.bind("<Left>", lambda e: self.adjust_servo(-5))
+        self.root.bind("<Right>", lambda e: self.adjust_servo(5))
+
+        # 3. Console/Advanced (Bottom)
+        bottom_frame = ttk.Frame(self.root, padding="5")
+        bottom_frame.grid(row=2, column=0, sticky=(tk.W, tk.E))
+
+        log_frame = ttk.LabelFrame(bottom_frame, text="Console", padding="5")
+        log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.log_text = tk.Text(log_frame, height=5, width=50)
+        self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        log_scroll = ttk.Scrollbar(log_frame, command=self.log_text.yview)
+        log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.log_text.config(yscrollcommand=log_scroll.set)
+
+        adv_frame = ttk.LabelFrame(bottom_frame, text="I2C/Config", padding="5")
+        adv_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=5)
+        self.addr_var = tk.StringVar(value="68")
+        ttk.Entry(adv_frame, textvariable=self.addr_var, width=4).grid(row=0, column=0)
+        ttk.Button(adv_frame, text="Addr", command=self.set_address).grid(row=0, column=1)
+        ttk.Button(adv_frame, text="Scan", command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
 
     def adjust_servo(self, delta):
         new_angle = self.servo_var.get() + delta
@@ -218,25 +252,6 @@ class VTXControllerGUI:
                 # Clear graphics but keep center marker if possible or just redraw everything
                 self.draw_enhanced_range_graphics(lat, lon)
             except: pass
-
-        # 3. Console/Advanced (Bottom)
-        bottom_frame = ttk.Frame(root, padding="5")
-        bottom_frame.grid(row=2, column=0, sticky=(tk.W, tk.E))
-
-        log_frame = ttk.LabelFrame(bottom_frame, text="Console", padding="5")
-        log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.log_text = tk.Text(log_frame, height=5, width=50)
-        self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        log_scroll = ttk.Scrollbar(log_frame, command=self.log_text.yview)
-        log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.log_text.config(yscrollcommand=log_scroll.set)
-
-        adv_frame = ttk.LabelFrame(bottom_frame, text="I2C/Config", padding="5")
-        adv_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=5)
-        self.addr_var = tk.StringVar(value="68")
-        ttk.Entry(adv_frame, textvariable=self.addr_var, width=4).grid(row=0, column=0)
-        ttk.Button(adv_frame, text="Addr", command=self.set_address).grid(row=0, column=1)
-        ttk.Button(adv_frame, text="Scan", command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
 
     def add_marker_event(self, coords):
         self.lat_var.set(f"{coords[0]:.6f}")
@@ -357,6 +372,38 @@ class VTXControllerGUI:
                                                 marker_color_circle="", marker_color_outside="")
                 self.azimuth_labels.append(lbl)
 
+            # 4. Rotation Sector (270°)
+            ref_az = self.ref_az_var.get()
+            sector_pts = []
+            for deg in range(0, 271, 5):
+                angle_deg = (ref_az + deg) % 360
+                br = math.radians(angle_deg)
+                d_r = 14.5 / R # Just inside the 15km ring
+                p_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br))
+                p_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r)*math.cos(lat_rad),
+                                            math.cos(d_r)-math.sin(lat_rad)*math.sin(p_lat))
+                sector_pts.append((math.degrees(p_lat), math.degrees(p_lon)))
+
+            # Start and end lines for the sector
+            p1 = sector_pts[0]
+            p2 = sector_pts[-1]
+            self.range_graphics.append(self.map_widget.set_path([(lat, lon), p1], color="#FFFF00", width=2))
+            self.range_graphics.append(self.map_widget.set_path([(lat, lon), p2], color="#FFFF00", width=2))
+            self.range_graphics.append(self.map_widget.set_path(sector_pts, color="#FFFF00", width=2))
+
+            # 5. Current Azimuth Needle
+            curr_angle = self.servo_var.get()
+            needle_deg = (ref_az + curr_angle) % 360
+            br_needle = math.radians(needle_deg)
+            d_r_needle = 15.5 / R # Slightly outside the 15km ring
+            n_lat = math.asin(math.sin(lat_rad)*math.cos(d_r_needle) + math.cos(lat_rad)*math.sin(d_r_needle)*math.cos(br_needle))
+            n_lon = lon_rad + math.atan2(math.sin(br_needle)*math.sin(d_r_needle)*math.cos(lat_rad),
+                                        math.cos(d_r_needle)-math.sin(lat_rad)*math.sin(n_lat))
+
+            needle = self.map_widget.set_path([(lat, lon), (math.degrees(n_lat), math.degrees(n_lon))],
+                                             color="#FF0000", width=4)
+            self.range_graphics.append(needle)
+
             # 3. Distance Labels (along 165° line)
             dist_br = math.radians(165)
             for r_km in [5, 10, 15]:
@@ -458,6 +505,14 @@ class VTXControllerGUI:
     def update_gui_servo(self, angle):
         self.servo_var.set(angle)
         self.servo_val_lbl.config(text=f"{angle}°")
+        self.refresh_map_overlay()
+
+    def refresh_map_overlay(self):
+        try:
+            lat = float(self.lat_var.get().replace(',', '.'))
+            lon = float(self.lon_var.get().replace(',', '.'))
+            self.draw_enhanced_range_graphics(lat, lon)
+        except: pass
 
     def send_command(self, cmd):
         if self.ser and self.ser.is_open:
@@ -475,8 +530,9 @@ class VTXControllerGUI:
     def update_servo(self, val):
         angle = int(float(val))
         self.servo_val_lbl.config(text=f"{angle}°")
-        # Use a debounce or rate limit if needed, but for now direct
         self.send_command(f"X {angle}")
+        # Update map needle
+        self.refresh_map_overlay()
 
     def set_servo_preset(self, angle):
         self.servo_var.set(angle)
