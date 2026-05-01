@@ -124,10 +124,11 @@ void setServoAngle(int angle) {
   current_servo_angle = angle;
 
   // Mapping 0-270 to 500us-2500us (Standard servo range)
-  // 50Hz period is 20ms. 16-bit resolution is 65535.
-  // 500us -> 1638, 2500us -> 8191
-  uint32_t duty = map(angle, 0, 270, 1638, 8191);
-  ledcWrite(servo_pin, duty); // ESP32 Core 3.0+ uses pin instead of channel
+  // 50Hz period is 20ms. 13-bit resolution is 8191 (default for 3.0 ledcAttach)
+  // pulse_us = map(angle, 0, 270, 500, 2500)
+  // duty = (pulse_us / 20000) * 8191
+  uint32_t duty = map(angle, 0, 270, 205, 1024); // (500/20000)*8191 to (2500/20000)*8191
+  ledcWrite(servo_pin, duty);
   // PC expects format A: <angle> for feedback
   Serial.printf("A: %d\n", current_servo_angle);
 }
@@ -217,7 +218,8 @@ void setup() {
   Wire.begin(i2c_sda_pin, i2c_scl_pin);
 
   // Servo Setup (Compatible with ESP32 Core 3.0+)
-  ledcAttach(servo_pin, servo_freq, servo_res);
+  // Default resolution is often 13 bits (8191) if not specified
+  ledcAttach(servo_pin, servo_freq, 13);
   setServoAngle(135); // Default to center
 
   // Encoder Setup
@@ -317,7 +319,7 @@ void loop() {
       if (pin >= 0) {
         ledcDetach(servo_pin);
         servo_pin = pin;
-        ledcAttach(servo_pin, servo_freq, servo_res);
+        ledcAttach(servo_pin, servo_freq, 13);
         Serial.printf("Servo pin set to %d\n", servo_pin);
       }
     } else if (cmd == 'H') {

@@ -215,7 +215,7 @@ class VTXControllerGUI:
         self.root.bind("<Right>", lambda e: self.adjust_servo(5))
 
         # 3. Console/Advanced (Bottom)
-        bottom_frame = ttk.Frame(self.root, padding="5")
+        bottom_frame = ttk.Frame(root, padding="5")
         bottom_frame.grid(row=2, column=0, sticky=(tk.W, tk.E))
 
         log_frame = ttk.LabelFrame(bottom_frame, text="Console", padding="5")
@@ -295,8 +295,11 @@ class VTXControllerGUI:
                                                     marker_color_circle="#FF0000",
                                                     marker_color_outside="#FFFFFF")
 
-            # Draw Tactical Overlay with delay
-            self.root.after(400, lambda: self.draw_enhanced_range_graphics(lat, lon))
+            # Force UI update before drawing overlay
+            self.root.update_idletasks()
+
+            # Draw Tactical Overlay
+            self.draw_enhanced_range_graphics(lat, lon)
             self.log(f"Map updated: {lat}, {lon}")
         except Exception as e:
             self.log(f"Map Update Error: {e}")
@@ -328,7 +331,7 @@ class VTXControllerGUI:
             for r_km in [5, 10, 15]:
                 pts = []
                 d_r = r_km / R
-                for i in range(0, 361, 4):
+                for i in range(0, 361, 4): # Better resolution
                     br = math.radians(i)
                     p_lat = math.asin(math.sin(lat_rad)*math.cos(d_r) + math.cos(lat_rad)*math.sin(d_r)*math.cos(br))
                     p_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r)*math.cos(lat_rad),
@@ -342,10 +345,10 @@ class VTXControllerGUI:
             for angle in range(0, 360, 30):
                 br = math.radians(angle)
 
-                # Draw Radial Line (from center to 15km)
+                # Draw Radial Line (from center to 15km) with multiple segments
                 line_pts = []
-                for dist in [0, 3.75, 7.5, 11.25, 15.0]:
-                    d_r_step = dist / R
+                for step in range(11):
+                    d_r_step = (step * 1.5) / R # 0 to 15km
                     p_lat = math.asin(math.sin(lat_rad)*math.cos(d_r_step) + math.cos(lat_rad)*math.sin(d_r_step)*math.cos(br))
                     p_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_r_step)*math.cos(lat_rad),
                                                 math.cos(d_r_step)-math.sin(lat_rad)*math.sin(p_lat))
@@ -354,7 +357,7 @@ class VTXControllerGUI:
                 line_obj = self.map_widget.set_path(line_pts, color="#FFFFFF", width=max(1, line_w - 1))
                 self.range_graphics.append(line_obj)
 
-                # Label position at 17.5 km
+                # Label position at 17.5km
                 d_lbl = 17.5 / R
                 l_lat = math.asin(math.sin(lat_rad)*math.cos(d_lbl) + math.cos(lat_rad)*math.sin(d_lbl)*math.cos(br))
                 l_lon = lon_rad + math.atan2(math.sin(br)*math.sin(d_lbl)*math.cos(lat_rad),
