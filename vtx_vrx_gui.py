@@ -109,9 +109,12 @@ class VTXControllerGUI:
         ttk.Entry(az_frame, textvariable=self.ref_az_var, width=5).pack(side=tk.LEFT, padx=5)
         ttk.Button(az_frame, text="🏠 Home", width=7, command=lambda: self.send_command("H")).pack(side=tk.RIGHT)
 
+        # System Control
+        sys_lf = ttk.LabelFrame(vtx_side_frame, text="System Control", padding="5")
+        sys_lf.pack(fill=tk.X, padx=5, pady=5)
         self.power_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(servo_lf, text="System Power (MOSFET)", variable=self.power_var,
-                        command=lambda: self.send_command(f"M {1 if self.power_var.get() else 0}")).pack(pady=5)
+        ttk.Checkbutton(sys_lf, text="Main Power (MOSFET GPIO 2)", variable=self.power_var,
+                        command=lambda: self.send_command(f"M {1 if self.power_var.get() else 0}")).pack(anchor=tk.W)
 
         # VRX Grid (3 Columns)
         vrx_main_lf = ttk.LabelFrame(control_tab, text="VRX Channels", padding="5")
