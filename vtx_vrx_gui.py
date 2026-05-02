@@ -15,6 +15,7 @@ class VTXControllerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("VTX/VRX Pro Controller with Map")
+        self.root.geometry("1200x800")
         self.ser = None
         self.marker = None
         self.range_graphics = [] # Store circles and lines
@@ -45,6 +46,15 @@ class VTXControllerGUI:
         self.status_var = tk.StringVar(value="Disconnected")
         ttk.Label(conn_frame, textvariable=self.status_var, foreground="blue").pack(side=tk.LEFT, padx=10)
 
+        # Global Power Switch (Top Connection Bar)
+        self.power_var = tk.BooleanVar(value=True)
+        self.pwr_cb = ttk.Checkbutton(conn_frame, text="MAIN POWER", variable=self.power_var,
+                                      command=lambda: self.send_command(f"M {1 if self.power_var.get() else 0}"))
+        self.pwr_cb.pack(side=tk.RIGHT, padx=5)
+        self.pwr_status_lbl = ttk.Label(conn_frame, text="ACTIVE", foreground="green", font=('Helvetica', 9, 'bold'))
+        self.pwr_status_lbl.pack(side=tk.RIGHT, padx=5)
+        ttk.Label(conn_frame, text="Status:").pack(side=tk.RIGHT)
+
         # 2. Tabs
         self.notebook = ttk.Notebook(root)
         self.notebook.grid(row=1, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
@@ -57,12 +67,38 @@ class VTXControllerGUI:
         control_tab.columnconfigure(1, weight=5)
         control_tab.rowconfigure(0, weight=1)
 
-        # VTX Side
-        vtx_side_frame = ttk.Frame(control_tab)
-        vtx_side_frame.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
+        # VTX Side (Scrollable Sidebar)
+        vtx_side_outer = ttk.Frame(control_tab)
+        vtx_side_outer.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
+
+        v_canvas = tk.Canvas(vtx_side_outer, width=250, highlightthickness=0)
+        v_scroll = ttk.Scrollbar(vtx_side_outer, orient="vertical", command=v_canvas.yview)
+        vtx_side_frame = ttk.Frame(v_canvas)
+
+        # Use a window in the canvas for the frame
+        self.v_window = v_canvas.create_window((0, 0), window=vtx_side_frame, anchor="nw")
+
+        def on_frame_configure(event):
+            v_canvas.configure(scrollregion=v_canvas.bbox("all"))
+
+        def on_canvas_configure(event):
+            # Sync frame width with canvas width
+            v_canvas.itemconfig(self.v_window, width=event.width)
+
+        vtx_side_frame.bind("<Configure>", on_frame_configure)
+        v_canvas.bind("<Configure>", on_canvas_configure)
+
+        # Mousewheel support for VTX sidebar
+        def _on_mousewheel(event):
+            v_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        v_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        v_canvas.configure(yscrollcommand=v_scroll.set)
+        v_canvas.pack(side="left", fill="both", expand=True)
+        v_scroll.pack(side="right", fill="y")
 
         vtx_freq_lf = ttk.LabelFrame(vtx_side_frame, text="VTX Frequency (1.2G)", padding="5")
-        vtx_freq_lf.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        vtx_freq_lf.pack(fill=tk.X, padx=5, pady=5)
         for freq in VTX_12G_TABLE:
             btn = ttk.Button(vtx_freq_lf, text=f"{freq} MHz",
                              command=lambda f=freq: self.send_command(f"V {f}"))
@@ -100,7 +136,7 @@ class VTXControllerGUI:
                        command=lambda a=angle: self.set_servo_preset(a)).pack(side=tk.LEFT, expand=True, padx=2)
 
         # Tactical Azimuth & Homing
-        az_frame = ttk.Frame(servo_lf)
+        az_frame = ttk.Frame(vtx_side_frame)
         az_frame.pack(fill=tk.X, pady=5)
         ttk.Label(az_frame, text="Ref Azimuth:").pack(side=tk.LEFT)
         self.ref_az_var = tk.IntVar(value=0)
@@ -108,13 +144,6 @@ class VTXControllerGUI:
         self.ref_az_var.trace_add("write", lambda *args: self.refresh_map_overlay())
         ttk.Entry(az_frame, textvariable=self.ref_az_var, width=5).pack(side=tk.LEFT, padx=5)
         ttk.Button(az_frame, text="🏠 Home", width=7, command=lambda: self.send_command("H")).pack(side=tk.RIGHT)
-
-        # System Control
-        sys_lf = ttk.LabelFrame(vtx_side_frame, text="System Control", padding="5")
-        sys_lf.pack(fill=tk.X, padx=5, pady=5)
-        self.power_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(sys_lf, text="Main Power (MOSFET GPIO 2)", variable=self.power_var,
-                        command=lambda: self.send_command(f"M {1 if self.power_var.get() else 0}")).pack(anchor=tk.W)
 
         # VRX Grid (3 Columns)
         vrx_main_lf = ttk.LabelFrame(control_tab, text="VRX Channels", padding="5")
@@ -523,6 +552,13 @@ class VTXControllerGUI:
         except: pass
 
     def send_command(self, cmd):
+        if cmd.startswith("M "):
+            state = cmd.split(" ")[1]
+            if state == "1":
+                self.pwr_status_lbl.config(text="ACTIVE", foreground="green")
+            else:
+                self.pwr_status_lbl.config(text="OFF", foreground="red")
+
         if self.ser and self.ser.is_open:
             self.ser.write((cmd + "\n").encode())
             self.log(">> " + cmd)
