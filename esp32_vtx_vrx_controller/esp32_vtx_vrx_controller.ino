@@ -25,7 +25,7 @@ unsigned long last_encoder_report = 0;
 
 // Homing and Power Pins
 const int limit_switch_pin = 12;
-const int mosfet_pin = 2;
+const int mosfet_pin = 9;
 
 // Keypad Configuration (4x4 Matrix)
 const int ROW_PINS[4] = {32, 33, 25, 26};

@@ -48,7 +48,7 @@ class VTXControllerGUI:
 
         # Global Power Switch (Top Connection Bar)
         self.power_var = tk.BooleanVar(value=True)
-        self.pwr_cb = ttk.Checkbutton(conn_frame, text="MAIN POWER", variable=self.power_var,
+        self.pwr_cb = ttk.Checkbutton(conn_frame, text="MAIN POWER (GPIO 9)", variable=self.power_var,
                                       command=lambda: self.send_command(f"M {1 if self.power_var.get() else 0}"))
         self.pwr_cb.pack(side=tk.RIGHT, padx=5)
         self.pwr_status_lbl = ttk.Label(conn_frame, text="ACTIVE", foreground="green", font=('Helvetica', 9, 'bold'))

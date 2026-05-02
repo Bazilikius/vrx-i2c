@@ -37,7 +37,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 
 ### ESP32 to Limit Switch & MOSFET
 - **Limit Switch (Left)** -> ESP32 **GPIO 12** (GND when triggered)
-- **MOSFET Gate** -> ESP32 **GPIO 2** (HIGH = ON, LOW = OFF)
+- **MOSFET Gate** -> ESP32 **GPIO 9** (HIGH = ON, LOW = OFF)
 
 ### Full Pinout Table
 
@@ -47,7 +47,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 | **VRX (I2C SDA)** | GPIO 21 | Data line |
 | **VRX (I2C SCL)** | GPIO 22 | Clock line |
 | **Digital Servo** | GPIO 13 | PWM Control |
-| **MOSFET Relay** | GPIO 2 | Power Control (Main System) |
+| **MOSFET Relay** | GPIO 9 | Power Control (Main System) |
 | **Limit Switch** | GPIO 12 | Homing/Calibration |
 | **Encoder CLK** | GPIO 34 | Rotation Feedback |
 | **Encoder DT** | GPIO 35 | Rotation Direction |
@@ -55,7 +55,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 | **Keypad Cols** | 27, 14, 4, 5 | Matrix Scanning |
 
 ## MOSFET Relay Setup
-The MOSFET relay on **GPIO 2** is used as a master power switch for the VTX and VRX peripherals.
+The MOSFET relay on **GPIO 9** is used as a master power switch for the VTX and VRX peripherals.
 - **Logic HIGH (3.3V)**: Relay closed / Power ON.
 - **Logic LOW (0V)**: Relay open / Power OFF.
 - **Default State**: The ESP32 firmware defaults to **ON** during setup.
