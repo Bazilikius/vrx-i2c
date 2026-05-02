@@ -18,18 +18,21 @@ const int servo_res = 16;
 volatile int current_servo_angle = 135; // Default to center of 270
 
 // Encoder Configuration (KY-040)
-const int encoder_clk = 34;
-const int encoder_dt = 35;
+// Moved from 34/35 (input-only, no internal pull-ups) to 18/19
+const int encoder_clk = 18;
+const int encoder_dt = 19;
 volatile int encoder_pos = 0;
 unsigned long last_encoder_report = 0;
 
 // Homing and Power Pins
 const int limit_switch_pin = 12;
-const int mosfet_pin = 9;
+// Moved from 9 (internal flash conflict) to 4
+const int mosfet_pin = 4;
 
 // Keypad Configuration (4x4 Matrix)
 const int ROW_PINS[4] = {32, 33, 25, 26};
-const int COL_PINS[4] = {27, 14, 4, 5};
+// Moved col from 4 to 15
+const int COL_PINS[4] = {27, 14, 15, 5};
 char keys[4][4] = {
   {'1','2','3','A'},
   {'4','5','6','B'},
