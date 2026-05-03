@@ -11,7 +11,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 ## Hardware Connections
 
 ### ESP32 to VTX
-- **VTX SmartAudio/IRC Pin** -> ESP32 **GPIO 17 (TX2)**
+- **VTX SmartAudio/IRC Pin** -> ESP32 **GPIO 23**
 - **GND** -> ESP32 **GND**
 - **VTX Power** -> External Power Source (ensure common GND)
 
@@ -43,7 +43,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 
 | Peripheral | ESP32 Pin | Function |
 |------------|-----------|----------|
-| **VTX (IRC Tramp)** | GPIO 17 | TX2 (Single wire data) |
+| **VTX (IRC Tramp)** | GPIO 23 | Single wire data (TX) |
 | **VRX (I2C SDA)** | GPIO 21 | Data line |
 | **VRX (I2C SCL)** | GPIO 22 | Clock line |
 | **Digital Servo** | GPIO 13 | PWM Control |
@@ -159,6 +159,18 @@ If you see `Failed to connect to ESP32: No serial data received` when uploading:
     -   Verify that the correct **COM port** is selected in the Arduino IDE (Tools > Port).
 3.  **Drivers**: Install the necessary drivers for your board (usually **CP210x** or **CH340**).
 4.  **Upload Speed**: Try reducing the "Upload Speed" in Tools to `115200`.
+
+## VTX Troubleshooting (No Power/Channel Change)
+
+If your VTX does not respond to commands:
+
+1. **Verify Pin**: The VTX data wire (IRC Tramp/SmartAudio) must be connected to ESP32 **GPIO 23**.
+2. **Check Baud Rate**:
+   - Most modern VTXs use **9600** (IRC Tramp).
+   - Some use **4800** (SmartAudio). Use the toggle buttons in the PC GUI console to test both.
+3. **Common Ground**: Ensure the ESP32 and VTX share a common **GND**.
+4. **Logic Levels**: The ESP32 uses 3.3V logic. If your VTX strictly requires 5V logic for data, a logic level shifter may be needed (though 3.3V works for most Rush VTXs).
+5. **Debug Console**: Watch the GUI console. It will show the exact HEX bytes being sent to the VTX.
 
 ## Troubleshooting I2C
 

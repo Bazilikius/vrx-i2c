@@ -1,10 +1,11 @@
 #include <Wire.h>
 
 // Pin definitions for ESP32
-// VTX IRC Tramp uses a single wire, we connect it to TX pin.
+// VTX IRC Tramp / SmartAudio uses a single wire, connect to TX pin.
+// Moved to GPIO 23 to avoid conflicts with Serial2 RX on some boards.
 #define VTX_SERIAL Serial1
-#define VTX_TX_PIN 17
-#define VTX_RX_PIN 16
+#define VTX_TX_PIN 23
+#define VTX_RX_PIN 22 // Dummy RX (Shared with SCL, but we only use TX)
 
 // Default I2C configuration
 int i2c_sda_pin = 21;
@@ -65,6 +66,12 @@ void sendTrampPacket(char cmd, uint16_t value) {
   packet[15] = 0; // End byte
 
   VTX_SERIAL.write(packet, 16);
+  VTX_SERIAL.flush(); // Ensure data is sent
+
+  // Debug output
+  Serial.printf("VTX SEND [%c:%d]: ", cmd, value);
+  for(int i=0; i<16; i++) Serial.printf("%02X ", packet[i]);
+  Serial.println();
 }
 
 void setVtxFrequency(uint16_t freq) {
@@ -245,6 +252,7 @@ void setup() {
   Serial.println("Commands:");
   Serial.println("  V <freq_mhz> - Set ONLY VTX frequency");
   Serial.println("  R <freq_mhz> - Set ONLY VRX frequency");
+  Serial.println("  B <baud>     - Change VTX baud (9600=Tramp, 4800=SmartAudio)");
   Serial.println("  F <freq_mhz> - Set BOTH VTX & VRX frequency");
   Serial.println("  P <power_mw> - Set VTX power");
   Serial.println("  X <angle>    - Set Servo angle (0-270)");
@@ -278,6 +286,13 @@ void loop() {
       if (freq > 0) {
         setVtxFrequency(freq);
         Serial.printf("Set VTX Frequency: %d MHz\n", freq);
+      }
+    } else if (cmd == 'B') {
+      int baud = arg.toInt();
+      if (baud == 4800 || baud == 9600) {
+        VTX_SERIAL.end();
+        VTX_SERIAL.begin(baud, SERIAL_8N1, VTX_RX_PIN, VTX_TX_PIN);
+        Serial.printf("VTX Baud set to %d\n", baud);
       }
     } else if (cmd == 'R') {
       uint16_t freq = arg.toInt();

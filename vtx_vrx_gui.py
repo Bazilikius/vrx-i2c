@@ -257,6 +257,13 @@ class VTXControllerGUI:
 
         log_frame = ttk.LabelFrame(bottom_frame, text="Console", padding="5")
         log_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        log_ctrl = ttk.Frame(log_frame)
+        log_ctrl.pack(side=tk.TOP, fill=tk.X)
+        ttk.Button(log_ctrl, text="Baud: 9600 (Tramp)", command=lambda: self.send_command("B 9600")).pack(side=tk.LEFT)
+        ttk.Button(log_ctrl, text="Baud: 4800 (SA)", command=lambda: self.send_command("B 4800")).pack(side=tk.LEFT, padx=5)
+        ttk.Label(log_ctrl, text="(VTX Pin: GPIO 23)", foreground="gray").pack(side=tk.RIGHT)
+
         self.log_text = tk.Text(log_frame, height=5, width=50)
         self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         log_scroll = ttk.Scrollbar(log_frame, command=self.log_text.yview)
