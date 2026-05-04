@@ -5,7 +5,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 - **VTX:** Rush 1.2/1.3GHz 1.6W (IRC Tramp protocol)
 - **VRX:** Controlled via I2C (16-bit little-endian frequency mapping)
 - **Servo:** Digital Servo control (PWM 50Hz, 270° range)
-- **Feedback:** Rotary Encoder, 4x4 Keypad, and Limit Switch support
+- **Feedback:** 4x4 Keypad support (Rows: 32, 33, 25, 26; Cols: 27, 14, 15, 5)
 - **Power:** MOSFET System Power control
 
 ## Hardware Connections
@@ -26,11 +26,6 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 - **GND** -> ESP32 **GND**
 - **VCC** -> External 5V Power Source (ensure common GND)
 
-### ESP32 to Rotary Encoder
-- **CLK** -> ESP32 **GPIO 18**
-- **DT** -> ESP32 **GPIO 19**
-- **GND** -> ESP32 **GND**
-
 ### ESP32 to 4x4 Keypad
 - **Rows [1-4]** -> ESP32 **GPIO 32, 33, 25, 26**
 - **Cols [1-4]** -> ESP32 **GPIO 27, 14, 15, 5**
@@ -47,8 +42,6 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 | **VRX (I2C SCL)** | GPIO 22 | Clock line |
 | **Digital Servo** | GPIO 13 | PWM Control (360° range) |
 | **MOSFET Relay** | GPIO 4 | Power Control (Main System) |
-| **Encoder CLK** | GPIO 18 | Rotation Feedback |
-| **Encoder DT** | GPIO 19 | Rotation Direction |
 | **Keypad Rows** | 32, 33, 25, 26 | Matrix Scanning |
 | **Keypad Cols** | 27, 14, 15, 5 | Matrix Scanning |
 

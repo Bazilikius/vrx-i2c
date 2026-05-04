@@ -15,12 +15,6 @@ int i2c_scl_pin = 22;
 int servo_pin = 13;
 const int servo_freq = 50;
 volatile int current_servo_angle = 180; // Default to center of 360
-volatile int target_servo_angle = 180;
-
-// Encoder Configuration (KY-040)
-const int encoder_clk = 18;
-const int encoder_dt = 19;
-volatile int encoder_pos = 0;
 
 // Power Pins
 const int mosfet_pin = 4;
@@ -158,7 +152,6 @@ void setServoAngle(int angle) {
   if (angle > 360) angle = 360;
 
   current_servo_angle = angle;
-  target_servo_angle = angle;
 
   // Mapping 0-360 to 500us-2500us
   uint32_t duty = map(angle, 0, 360, 205, 1024);
@@ -168,19 +161,6 @@ void setServoAngle(int angle) {
   Serial.printf("A: %d\n", current_servo_angle);
 }
 
-
-void IRAM_ATTR readEncoder() {
-  // KY-040 Encoder Logic (20 impulses per 360 degrees)
-  // One impulse is exactly 18 degrees (360 / 20)
-  int dt_val = digitalRead(encoder_dt);
-  if (dt_val == LOW) {
-    target_servo_angle += 18;
-  } else {
-    target_servo_angle -= 18;
-  }
-  if (target_servo_angle < 0) target_servo_angle = 0;
-  if (target_servo_angle > 360) target_servo_angle = 360;
-}
 
 void checkKeypad() {
   if (millis() - last_key_time < debounce_ms) return;
@@ -227,11 +207,6 @@ void setup() {
   ledcAttach(servo_pin, servo_freq, 13);
   setServoAngle(180); // Default to center of 360
 
-  // Encoder Setup
-  pinMode(encoder_clk, INPUT_PULLUP);
-  pinMode(encoder_dt, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(encoder_clk), readEncoder, FALLING);
-
   // Power Setup
   pinMode(mosfet_pin, OUTPUT);
   digitalWrite(mosfet_pin, HIGH);
@@ -259,13 +234,6 @@ void setup() {
 
 void loop() {
   checkKeypad();
-
-  // Smooth position tracking
-  static int last_target = -1;
-  if (target_servo_angle != last_target) {
-    setServoAngle(target_servo_angle);
-    last_target = target_servo_angle;
-  }
 
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
