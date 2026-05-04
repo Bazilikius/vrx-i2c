@@ -270,6 +270,11 @@ class VTXControllerGUI:
         log_ctrl.pack(side=tk.TOP, fill=tk.X)
         ttk.Button(log_ctrl, text="Baud: 9600 (Tramp)", command=lambda: self.send_command("B 9600")).pack(side=tk.LEFT)
         ttk.Button(log_ctrl, text="Baud: 4800 (SA)", command=lambda: self.send_command("B 4800")).pack(side=tk.LEFT, padx=5)
+        ttk.Button(log_ctrl, text="🔍 Request VTX Info", command=lambda: self.send_command("Q")).pack(side=tk.LEFT, padx=5)
+
+        self.vtx_status_lbl = ttk.Label(log_ctrl, text="VTX: Unknown", foreground="blue")
+        self.vtx_status_lbl.pack(side=tk.LEFT, padx=10)
+
         ttk.Label(log_ctrl, text="(VTX Pin: GPIO 23)", foreground="gray").pack(side=tk.RIGHT)
 
         self.log_text = tk.Text(log_frame, height=5, width=50)
@@ -559,6 +564,9 @@ class VTXControllerGUI:
                     elif "LIMIT: MAX REACHED" in line:
                         self.root.after(0, lambda: self.max_limit_lbl.config(foreground="red", font=('Helvetica', 9, 'bold')))
                         self.root.after(2000, lambda: self.max_limit_lbl.config(foreground="gray", font=('Helvetica', 9)))
+                    # Parse VTX Telemetry
+                    elif line.startswith("VTX_STATUS:"):
+                        self.root.after(0, lambda l=line: self.vtx_status_lbl.config(text=l.replace("VTX_STATUS:", "VTX:")))
             time.sleep(0.01)
 
     def update_gui_servo(self, angle):

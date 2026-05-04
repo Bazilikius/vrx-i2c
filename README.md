@@ -11,7 +11,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 ## Hardware Connections
 
 ### ESP32 to VTX
-- **VTX SmartAudio/IRC Pin** -> ESP32 **GPIO 23**
+- **VTX SmartAudio/IRC Pin** -> ESP32 **GPIO 23** (Ensure good connection for bidirectional telemetry)
 - **GND** -> ESP32 **GND**
 - **VTX Power** -> External Power Source (ensure common GND)
 
@@ -44,7 +44,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 
 | Peripheral | ESP32 Pin | Function |
 |------------|-----------|----------|
-| **VTX (IRC Tramp)** | GPIO 23 | Single wire data (TX) |
+| **VTX (IRC Tramp)** | GPIO 23 | Single wire data (TX/RX) |
 | **VRX (I2C SDA)** | GPIO 21 | Data line |
 | **VRX (I2C SCL)** | GPIO 22 | Clock line |
 | **Digital Servo** | GPIO 13 | PWM Control (360° range) |
@@ -173,6 +173,7 @@ If your VTX does not respond to commands:
 3. **Common Ground**: Ensure the ESP32 and VTX share a common **GND**.
 4. **Logic Levels**: The ESP32 uses 3.3V logic. If your VTX strictly requires 5V logic for data, a logic level shifter may be needed (though 3.3V works for most Rush VTXs).
 5. **Debug Console**: Watch the GUI console. It will show the exact HEX bytes being sent to the VTX.
+6. **Bidirectional Support**: The system now supports VTX telemetry. Use the "Request VTX Info" button in the GUI to verify if the VTX is communicating back to the ESP32.
 
 ## Troubleshooting I2C
 

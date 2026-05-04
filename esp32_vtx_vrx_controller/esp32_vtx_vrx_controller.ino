@@ -72,18 +72,48 @@ void sendTrampPacket(char cmd, uint16_t value) {
 }
 
 void setVtxFrequency(uint16_t freq) {
-  // Send 3 times for reliability
+  // Use uppercase 'F' as seen in the RandyReover/VTXControl repo
   for (int i = 0; i < 3; i++) {
-    sendTrampPacket('f', freq);
+    sendTrampPacket('F', freq);
     delay(50);
   }
 }
 
 void setVtxPower(uint16_t power) {
-  // Send 3 times for reliability
+  // Use uppercase 'P' as seen in the RandyReover/VTXControl repo
   for (int i = 0; i < 3; i++) {
-    sendTrampPacket('p', power);
+    sendTrampPacket('P', power);
     delay(50);
+  }
+}
+
+void requestVtxConfig() {
+  // Request VTX config with 'v' command
+  sendTrampPacket('v', 0);
+
+  // Wait for response (16 bytes)
+  unsigned long start = millis();
+  while (VTX_SERIAL.available() < 16 && millis() - start < 500) {
+    delay(10);
+  }
+
+  if (VTX_SERIAL.available() >= 16) {
+    uint8_t buffer[16];
+    VTX_SERIAL.readBytes(buffer, 16);
+
+    // Simple report to PC
+    Serial.print("VTX_INFO: ");
+    for(int i=0; i<16; i++) Serial.printf("%02X ", buffer[i]);
+    Serial.println();
+
+    // Parse if it looks like a valid Tramp response (Sync 0x0F)
+    if (buffer[0] == 0x0F) {
+       uint16_t f = buffer[2] | (buffer[3] << 8);
+       uint16_t p = buffer[4] | (buffer[5] << 8);
+       Serial.printf("VTX_STATUS: Freq=%d, Pwr=%d\n", f, p);
+    }
+  } else {
+    Serial.println("VTX_INFO: No response");
   }
 }
 
@@ -260,6 +290,7 @@ void setup() {
   Serial.println("  V <freq_mhz> - Set ONLY VTX frequency");
   Serial.println("  R <freq_mhz> - Set ONLY VRX frequency");
   Serial.println("  B <baud>     - Change VTX baud (9600=Tramp, 4800=SmartAudio)");
+  Serial.println("  Q            - Request VTX Configuration (Telemetry)");
   Serial.println("  F <freq_mhz> - Set BOTH VTX & VRX frequency");
   Serial.println("  P <power_mw> - Set VTX power");
   Serial.println("  X <angle>    - Set Servo angle (0-270)");
@@ -355,6 +386,8 @@ void loop() {
       Serial.printf("System Power: %s\n", state == 1 ? "ON" : "OFF");
     } else if (cmd == 'S') {
       scanI2C();
+    } else if (cmd == 'Q') {
+      requestVtxConfig();
     } else {
       Serial.println("Unknown command.");
     }
