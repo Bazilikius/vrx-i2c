@@ -170,12 +170,13 @@ void setServoAngle(int angle) {
 
 
 void IRAM_ATTR readEncoder() {
-  // KY-040 Encoder Logic
+  // KY-040 Encoder Logic (20 impulses per 360 degrees)
+  // One impulse is exactly 18 degrees (360 / 20)
   int dt_val = digitalRead(encoder_dt);
   if (dt_val == LOW) {
-    target_servo_angle += 10;
+    target_servo_angle += 18;
   } else {
-    target_servo_angle -= 10;
+    target_servo_angle -= 18;
   }
   if (target_servo_angle < 0) target_servo_angle = 0;
   if (target_servo_angle > 360) target_servo_angle = 360;
