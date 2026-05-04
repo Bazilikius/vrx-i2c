@@ -15,8 +15,7 @@ def main():
     parser.add_argument('--band', help='Band name (e.g., "Band A", "Band R")')
     parser.add_argument('--chan', type=int, help='Channel number (1-8)')
     parser.add_argument('--power', type=int, help='VTX power in mW')
-    parser.add_argument('--servo', type=int, help='Set Servo angle (0-270)')
-    parser.add_argument('--home', action='store_true', help='Execute Servo Homing sequence')
+    parser.add_argument('--servo', type=int, help='Set Servo angle (0-360)')
     parser.add_argument('--mosfet', type=int, choices=[0, 1], help='Set MOSFET Power (0=OFF, 1=ON)')
     parser.add_argument('--addr', help='VRX I2C address in hex (e.g., 54)')
     parser.add_argument('--sda', type=int, help='I2C SDA pin')
@@ -70,13 +69,6 @@ def main():
             while ser.in_waiting:
                 print(ser.readline().decode().strip())
 
-        if args.home:
-            ser.write(b"H\n")
-            print("Sent: Servo Homing sequence")
-            # Wait for feedback
-            time.sleep(2)
-            while ser.in_waiting:
-                print(ser.readline().decode().strip())
 
         if args.mosfet is not None:
             ser.write(f"M {args.mosfet}\n".encode())

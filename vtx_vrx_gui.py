@@ -147,21 +147,13 @@ class VTXControllerGUI:
         self.servo_val_lbl.pack(side=tk.LEFT, expand=True)
         ttk.Label(servo_label_frame, text="360°").pack(side=tk.RIGHT)
 
-        # Limit Switch Indicators
-        limit_frame = ttk.Frame(servo_lf)
-        limit_frame.pack(fill=tk.X, pady=2)
-        self.min_limit_lbl = ttk.Label(limit_frame, text="MIN LIMIT", foreground="gray")
-        self.min_limit_lbl.pack(side=tk.LEFT, expand=True)
-        self.max_limit_lbl = ttk.Label(limit_frame, text="MAX LIMIT", foreground="gray")
-        self.max_limit_lbl.pack(side=tk.LEFT, expand=True)
-
         servo_presets = ttk.Frame(servo_lf)
         servo_presets.pack(fill=tk.X, pady=5)
         for angle in [0, 90, 180, 270, 360]:
             ttk.Button(servo_presets, text=f"{angle}°", width=4,
                        command=lambda a=angle: self.set_servo_preset(a)).pack(side=tk.LEFT, expand=True, padx=1)
 
-        # Tactical Azimuth & Homing
+        # Tactical Azimuth
         az_frame = ttk.Frame(vtx_side_frame)
         az_frame.pack(fill=tk.X, pady=5)
         ttk.Label(az_frame, text="Ref Azimuth:").pack(side=tk.LEFT)
@@ -169,7 +161,6 @@ class VTXControllerGUI:
         # Update map when Reference Azimuth changes
         self.ref_az_var.trace_add("write", lambda *args: self.refresh_map_overlay())
         ttk.Entry(az_frame, textvariable=self.ref_az_var, width=5).pack(side=tk.LEFT, padx=5)
-        ttk.Button(az_frame, text="🏠 Home", width=7, command=lambda: self.send_command("H")).pack(side=tk.RIGHT)
 
         # VRX Grid (3 Columns)
         vrx_main_lf = ttk.LabelFrame(control_tab, text="VRX Channels", padding="5")
@@ -575,13 +566,6 @@ class VTXControllerGUI:
                             angle = int(line.split(":")[1].strip())
                             self.root.after(0, self.update_gui_servo, angle)
                         except: pass
-                    # Parse Limits
-                    elif "LIMIT: MIN REACHED" in line:
-                        self.root.after(0, lambda: self.min_limit_lbl.config(foreground="red", font=('Helvetica', 9, 'bold')))
-                        self.root.after(2000, lambda: self.min_limit_lbl.config(foreground="gray", font=('Helvetica', 9)))
-                    elif "LIMIT: MAX REACHED" in line:
-                        self.root.after(0, lambda: self.max_limit_lbl.config(foreground="red", font=('Helvetica', 9, 'bold')))
-                        self.root.after(2000, lambda: self.max_limit_lbl.config(foreground="gray", font=('Helvetica', 9)))
                     # Parse VTX Telemetry
                     elif line.startswith("VTX_STATUS:"):
                         self.root.after(0, lambda l=line: self.vtx_status_lbl.config(text=l.replace("VTX_STATUS:", "VTX:")))

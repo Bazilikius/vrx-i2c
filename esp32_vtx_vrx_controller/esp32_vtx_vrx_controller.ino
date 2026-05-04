@@ -22,9 +22,7 @@ const int encoder_clk = 18;
 const int encoder_dt = 19;
 volatile int encoder_pos = 0;
 
-// Homing, Limit and Power Pins
-const int limit_min_pin = 12; // Physical 0 deg
-const int limit_max_pin = 36; // Physical 360 deg (Input only, no internal PU)
+// Power Pins
 const int mosfet_pin = 4;
 
 // Keypad Configuration (4x4 Matrix)
@@ -156,23 +154,6 @@ void scanI2C() {
 }
 
 void setServoAngle(int angle) {
-  // Logic for Dual Limit Switches
-  if (angle <= current_servo_angle && digitalRead(limit_min_pin) == LOW) {
-    angle = current_servo_angle; // Stop moving left
-    if (current_servo_angle != 0) {
-       current_servo_angle = 0;
-       Serial.println("LIMIT: MIN REACHED");
-    }
-  }
-
-  if (angle >= current_servo_angle && digitalRead(limit_max_pin) == LOW) {
-    angle = current_servo_angle; // Stop moving right
-    if (current_servo_angle != 360) {
-       current_servo_angle = 360;
-       Serial.println("LIMIT: MAX REACHED");
-    }
-  }
-
   if (angle < 0) angle = 0;
   if (angle > 360) angle = 360;
 
@@ -187,29 +168,6 @@ void setServoAngle(int angle) {
   Serial.printf("A: %d\n", current_servo_angle);
 }
 
-void performHoming() {
-  Serial.println("Homing sequence started (MIN Limit)...");
-
-  // 1. Safety move: Take 20 steps to the right
-  Serial.println("Step 1: Safety move right...");
-  setServoAngle(current_servo_angle + 20);
-  delay(500);
-
-  // 2. Move left slowly until MIN limit switch is triggered
-  Serial.println("Step 2: Moving left to MIN limit...");
-  for (int a = current_servo_angle; a >= -20; a--) {
-    setServoAngle(a);
-    delay(40);
-    if (digitalRead(limit_min_pin) == LOW) {
-      Serial.println("Step 3: MIN Limit (0°) Calibration complete.");
-      current_servo_angle = 0;
-      target_servo_angle = 0;
-      setServoAngle(0);
-      return;
-    }
-  }
-  Serial.println("ERROR: Homing failed.");
-}
 
 void IRAM_ATTR readEncoder() {
   // KY-040 Encoder Logic
@@ -273,9 +231,7 @@ void setup() {
   pinMode(encoder_dt, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(encoder_clk), readEncoder, FALLING);
 
-  // Homing, Limit and Power Setup
-  pinMode(limit_min_pin, INPUT_PULLUP);
-  pinMode(limit_max_pin, INPUT); // GPIO 36 needs external pull-up or depends on wiring
+  // Power Setup
   pinMode(mosfet_pin, OUTPUT);
   digitalWrite(mosfet_pin, HIGH);
 
@@ -378,8 +334,6 @@ void loop() {
         ledcAttach(servo_pin, servo_freq, 13);
         Serial.printf("Servo pin set to %d\n", servo_pin);
       }
-    } else if (cmd == 'H') {
-      performHoming();
     } else if (cmd == 'M') {
       int state = arg.toInt();
       digitalWrite(mosfet_pin, state == 1 ? HIGH : LOW);
