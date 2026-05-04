@@ -113,27 +113,35 @@ class VTXControllerGUI:
                              command=lambda val=p: self.send_command(f"P {val}"))
             btn.pack(fill=tk.X, pady=1)
 
-        # Servo Control (270 Degree)
-        servo_lf = ttk.LabelFrame(vtx_side_frame, text="Servo Control (270°)", padding="5")
+        # Servo Control (360 Degree)
+        servo_lf = ttk.LabelFrame(vtx_side_frame, text="Servo Control (360°)", padding="5")
         servo_lf.pack(fill=tk.X, padx=5, pady=5)
 
-        self.servo_var = tk.IntVar(value=135)
-        self.servo_scale = ttk.Scale(servo_lf, from_=0, to=270, orient=tk.HORIZONTAL,
+        self.servo_var = tk.IntVar(value=180)
+        self.servo_scale = ttk.Scale(servo_lf, from_=0, to=360, orient=tk.HORIZONTAL,
                                     variable=self.servo_var, command=self.update_servo)
         self.servo_scale.pack(fill=tk.X, padx=5, pady=5)
 
         servo_label_frame = ttk.Frame(servo_lf)
         servo_label_frame.pack(fill=tk.X)
         ttk.Label(servo_label_frame, text="0°").pack(side=tk.LEFT)
-        self.servo_val_lbl = ttk.Label(servo_label_frame, text="135°", font=('Helvetica', 10, 'bold'))
+        self.servo_val_lbl = ttk.Label(servo_label_frame, text="180°", font=('Helvetica', 10, 'bold'))
         self.servo_val_lbl.pack(side=tk.LEFT, expand=True)
-        ttk.Label(servo_label_frame, text="270°").pack(side=tk.RIGHT)
+        ttk.Label(servo_label_frame, text="360°").pack(side=tk.RIGHT)
+
+        # Limit Switch Indicators
+        limit_frame = ttk.Frame(servo_lf)
+        limit_frame.pack(fill=tk.X, pady=2)
+        self.min_limit_lbl = ttk.Label(limit_frame, text="MIN LIMIT", foreground="gray")
+        self.min_limit_lbl.pack(side=tk.LEFT, expand=True)
+        self.max_limit_lbl = ttk.Label(limit_frame, text="MAX LIMIT", foreground="gray")
+        self.max_limit_lbl.pack(side=tk.LEFT, expand=True)
 
         servo_presets = ttk.Frame(servo_lf)
         servo_presets.pack(fill=tk.X, pady=5)
-        for angle in [0, 135, 270]:
-            ttk.Button(servo_presets, text=f"{angle}°", width=5,
-                       command=lambda a=angle: self.set_servo_preset(a)).pack(side=tk.LEFT, expand=True, padx=2)
+        for angle in [0, 90, 180, 270, 360]:
+            ttk.Button(servo_presets, text=f"{angle}°", width=4,
+                       command=lambda a=angle: self.set_servo_preset(a)).pack(side=tk.LEFT, expand=True, padx=1)
 
         # Tactical Azimuth & Homing
         az_frame = ttk.Frame(vtx_side_frame)
@@ -278,10 +286,16 @@ class VTXControllerGUI:
         ttk.Button(adv_frame, text="Scan", command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
 
     def adjust_servo(self, delta):
+        # Rate limiting for numpad/arrows to prevent flooding
+        now = time.time()
+        if not hasattr(self, 'last_adj_time'): self.last_adj_time = 0
+        if now - self.last_adj_time < 0.05: return
+        self.last_adj_time = now
+
         try:
             curr = self.servo_var.get()
         except:
-            curr = 135
+            curr = 180
         self.set_servo_preset(curr + delta)
 
     def on_map_interaction(self, event=None):
@@ -351,7 +365,7 @@ class VTXControllerGUI:
             try: ref_az = self.ref_az_var.get()
             except: ref_az = 0
             try: curr_angle = self.servo_var.get()
-            except: curr_angle = 135
+            except: curr_angle = 180
 
             R = 6371.0 # Earth radius in km
             lat_rad, lon_rad = math.radians(lat), math.radians(lon)
@@ -412,9 +426,9 @@ class VTXControllerGUI:
                                                 marker_color_circle="", marker_color_outside="")
                 self.azimuth_labels.append(lbl)
 
-            # 4. Rotation Sector (270°)
+            # 4. Rotation Sector (360°)
             sector_pts = []
-            for deg in range(0, 271, 5):
+            for deg in range(0, 361, 5):
                 angle_deg = (ref_az + deg) % 360
                 br = math.radians(angle_deg)
                 d_r = 14.5 / R # Just inside the 15km ring
@@ -538,6 +552,13 @@ class VTXControllerGUI:
                             angle = int(line.split(":")[1].strip())
                             self.root.after(0, self.update_gui_servo, angle)
                         except: pass
+                    # Parse Limits
+                    elif "LIMIT: MIN REACHED" in line:
+                        self.root.after(0, lambda: self.min_limit_lbl.config(foreground="red", font=('Helvetica', 9, 'bold')))
+                        self.root.after(2000, lambda: self.min_limit_lbl.config(foreground="gray", font=('Helvetica', 9)))
+                    elif "LIMIT: MAX REACHED" in line:
+                        self.root.after(0, lambda: self.max_limit_lbl.config(foreground="red", font=('Helvetica', 9, 'bold')))
+                        self.root.after(2000, lambda: self.max_limit_lbl.config(foreground="gray", font=('Helvetica', 9)))
             time.sleep(0.01)
 
     def update_gui_servo(self, angle):

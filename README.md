@@ -35,8 +35,9 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 - **Rows [1-4]** -> ESP32 **GPIO 32, 33, 25, 26**
 - **Cols [1-4]** -> ESP32 **GPIO 27, 14, 15, 5**
 
-### ESP32 to Limit Switch & MOSFET
-- **Limit Switch (Left)** -> ESP32 **GPIO 12** (GND when triggered)
+### ESP32 to Limit Switches & MOSFET
+- **Limit Switch MIN (0°)** -> ESP32 **GPIO 12** (GND when triggered)
+- **Limit Switch MAX (360°)** -> ESP32 **GPIO 36** (Needs external pull-up if using mechanical switch)
 - **MOSFET Gate** -> ESP32 **GPIO 4** (HIGH = ON, LOW = OFF)
 
 ### Full Pinout Table
@@ -46,9 +47,10 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 | **VTX (IRC Tramp)** | GPIO 23 | Single wire data (TX) |
 | **VRX (I2C SDA)** | GPIO 21 | Data line |
 | **VRX (I2C SCL)** | GPIO 22 | Clock line |
-| **Digital Servo** | GPIO 13 | PWM Control |
+| **Digital Servo** | GPIO 13 | PWM Control (360° range) |
 | **MOSFET Relay** | GPIO 4 | Power Control (Main System) |
-| **Limit Switch** | GPIO 12 | Homing/Calibration |
+| **Limit Switch MIN** | GPIO 12 | 0° Homing/Safety |
+| **Limit Switch MAX** | GPIO 36 | 360° Safety |
 | **Encoder CLK** | GPIO 18 | Rotation Feedback |
 | **Encoder DT** | GPIO 19 | Rotation Direction |
 | **Keypad Rows** | 32, 33, 25, 26 | Matrix Scanning |

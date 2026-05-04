@@ -5,29 +5,26 @@
 // Moved to GPIO 23 to avoid conflicts with Serial2 RX on some boards.
 #define VTX_SERIAL Serial1
 #define VTX_TX_PIN 23
-#define VTX_RX_PIN 22 // Dummy RX (Shared with SCL, but we only use TX)
+#define VTX_RX_PIN 34 // Use 34 (input-only, safe for dummy RX)
 
 // Default I2C configuration
 int i2c_sda_pin = 21;
 int i2c_scl_pin = 22;
 
-// Servo Configuration (270 Degree)
+// Servo Configuration (360 Degree)
 int servo_pin = 13;
-const int servo_channel = 0;
 const int servo_freq = 50;
-const int servo_res = 16;
-volatile int current_servo_angle = 135; // Default to center of 270
+volatile int current_servo_angle = 180; // Default to center of 360
+volatile int target_servo_angle = 180;
 
 // Encoder Configuration (KY-040)
-// Moved from 34/35 (input-only, no internal pull-ups) to 18/19
 const int encoder_clk = 18;
 const int encoder_dt = 19;
 volatile int encoder_pos = 0;
-unsigned long last_encoder_report = 0;
 
-// Homing and Power Pins
-const int limit_switch_pin = 12;
-// Moved from 9 (internal flash conflict) to 4
+// Homing, Limit and Power Pins
+const int limit_min_pin = 12; // Physical 0 deg
+const int limit_max_pin = 36; // Physical 360 deg (Input only, no internal PU)
 const int mosfet_pin = 4;
 
 // Keypad Configuration (4x4 Matrix)
@@ -129,61 +126,71 @@ void scanI2C() {
 }
 
 void setServoAngle(int angle) {
-  if (angle < 0) angle = 0;
-  if (angle > 270) angle = 270;
-  current_servo_angle = angle;
+  // Logic for Dual Limit Switches
+  if (angle <= current_servo_angle && digitalRead(limit_min_pin) == LOW) {
+    angle = current_servo_angle; // Stop moving left
+    if (current_servo_angle != 0) {
+       current_servo_angle = 0;
+       Serial.println("LIMIT: MIN REACHED");
+    }
+  }
 
-  // Mapping 0-270 to 500us-2500us (Standard servo range)
-  // 50Hz period is 20ms. 13-bit resolution is 8191 (default for 3.0 ledcAttach)
-  // pulse_us = map(angle, 0, 270, 500, 2500)
-  // duty = (pulse_us / 20000) * 8191
-  uint32_t duty = map(angle, 0, 270, 205, 1024); // (500/20000)*8191 to (2500/20000)*8191
+  if (angle >= current_servo_angle && digitalRead(limit_max_pin) == LOW) {
+    angle = current_servo_angle; // Stop moving right
+    if (current_servo_angle != 360) {
+       current_servo_angle = 360;
+       Serial.println("LIMIT: MAX REACHED");
+    }
+  }
+
+  if (angle < 0) angle = 0;
+  if (angle > 360) angle = 360;
+
+  current_servo_angle = angle;
+  target_servo_angle = angle;
+
+  // Mapping 0-360 to 500us-2500us
+  uint32_t duty = map(angle, 0, 360, 205, 1024);
   ledcWrite(servo_pin, duty);
-  // PC expects format A: <angle> for feedback
+
+  // Feedback for PC GUI
   Serial.printf("A: %d\n", current_servo_angle);
 }
 
 void performHoming() {
-  Serial.println("Homing sequence started...");
+  Serial.println("Homing sequence started (MIN Limit)...");
 
-  // 1. Safety move: Take 10 steps to the right
+  // 1. Safety move: Take 20 steps to the right
   Serial.println("Step 1: Safety move right...");
-  int start_angle = current_servo_angle;
-  setServoAngle(start_angle + 10);
+  setServoAngle(current_servo_angle + 20);
   delay(500);
 
-  // 2. Check if limit switch is already activated (danger zone)
-  if (digitalRead(limit_switch_pin) == LOW) {
-    Serial.println("ERROR: Limit switch triggered unexpectedly. Jamming prevented.");
-    return;
-  }
-
-  // 3. Move left slowly until limit switch is triggered
-  Serial.println("Step 2: Moving left to home...");
-  for (int a = current_servo_angle; a >= -10; a--) {
+  // 2. Move left slowly until MIN limit switch is triggered
+  Serial.println("Step 2: Moving left to MIN limit...");
+  for (int a = current_servo_angle; a >= -20; a--) {
     setServoAngle(a);
-    delay(50);
-    if (digitalRead(limit_switch_pin) == LOW) {
-      Serial.println("Step 3: Home reached.");
+    delay(40);
+    if (digitalRead(limit_min_pin) == LOW) {
+      Serial.println("Step 3: MIN Limit (0°) Calibration complete.");
       current_servo_angle = 0;
+      target_servo_angle = 0;
       setServoAngle(0);
       return;
     }
   }
-  Serial.println("ERROR: Home not found.");
+  Serial.println("ERROR: Homing failed.");
 }
 
 void IRAM_ATTR readEncoder() {
-  // KY-040 Encoder Logic (20 pulses per 360 degrees)
-  // One click is 13.5 degrees (270 / 20)
+  // KY-040 Encoder Logic
   int dt_val = digitalRead(encoder_dt);
   if (dt_val == LOW) {
-    current_servo_angle += 13; // Approx step
+    target_servo_angle += 10;
   } else {
-    current_servo_angle -= 13;
+    target_servo_angle -= 10;
   }
-  if (current_servo_angle < 0) current_servo_angle = 0;
-  if (current_servo_angle > 270) current_servo_angle = 270;
+  if (target_servo_angle < 0) target_servo_angle = 0;
+  if (target_servo_angle > 360) target_servo_angle = 360;
 }
 
 void checkKeypad() {
@@ -221,26 +228,26 @@ void setup() {
   // USB Serial for PC communication
   Serial.begin(115200);
 
-  // VTX Serial (IRC Tramp @ 9600 baud)
+  // VTX Serial
   VTX_SERIAL.begin(9600, SERIAL_8N1, VTX_RX_PIN, VTX_TX_PIN);
 
   // I2C for VRX
   Wire.begin(i2c_sda_pin, i2c_scl_pin);
 
-  // Servo Setup (Compatible with ESP32 Core 3.0+)
-  // Default resolution is often 13 bits (8191) if not specified
+  // Servo Setup
   ledcAttach(servo_pin, servo_freq, 13);
-  setServoAngle(135); // Default to center
+  setServoAngle(180); // Default to center of 360
 
   // Encoder Setup
   pinMode(encoder_clk, INPUT_PULLUP);
   pinMode(encoder_dt, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(encoder_clk), readEncoder, FALLING);
 
-  // Homing and Power Setup
-  pinMode(limit_switch_pin, INPUT_PULLUP);
+  // Homing, Limit and Power Setup
+  pinMode(limit_min_pin, INPUT_PULLUP);
+  pinMode(limit_max_pin, INPUT); // GPIO 36 needs external pull-up or depends on wiring
   pinMode(mosfet_pin, OUTPUT);
-  digitalWrite(mosfet_pin, HIGH); // Default power ON
+  digitalWrite(mosfet_pin, HIGH);
 
   // Keypad Setup
   for (int i = 0; i < 4; i++) {
@@ -265,11 +272,11 @@ void setup() {
 void loop() {
   checkKeypad();
 
-  // Update servo if encoder changed (or just keep in sync)
-  static int last_angle = -1;
-  if (current_servo_angle != last_angle) {
-    setServoAngle(current_servo_angle);
-    last_angle = current_servo_angle;
+  // Smooth position tracking
+  static int last_target = -1;
+  if (target_servo_angle != last_target) {
+    setServoAngle(target_servo_angle);
+    last_target = target_servo_angle;
   }
 
   if (Serial.available() > 0) {
