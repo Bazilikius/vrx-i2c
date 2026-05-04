@@ -105,13 +105,31 @@ class VTXControllerGUI:
             btn.pack(fill=tk.X, pady=1)
             btn.bind("<Button-3>", lambda e, f=freq: self.add_to_favorites("vtx", f))
 
-        vtx_pwr_lf = ttk.LabelFrame(vtx_side_frame, text="VTX Power", padding="5")
+        vtx_pwr_lf = ttk.LabelFrame(vtx_side_frame, text="VTX Power (mW)", padding="5")
         vtx_pwr_lf.pack(fill=tk.X, padx=5, pady=5)
-        power_levels = [25, 200, 400, 600, 1000, 1600]
+
+        # Rush 1.2G 1.6W specific levels
+        power_levels = [25, 200, 600, 1600]
         for p in power_levels:
             btn = ttk.Button(vtx_pwr_lf, text=f"{p} mW",
                              command=lambda val=p: self.send_command(f"P {val}"))
             btn.pack(fill=tk.X, pady=1)
+
+        # Test Indices (Levels 1-4)
+        vtx_lv_lf = ttk.LabelFrame(vtx_side_frame, text="VTX Power (Level Index)", padding="5")
+        vtx_lv_lf.pack(fill=tk.X, padx=5, pady=5)
+        for i in range(1, 5):
+            btn = ttk.Button(vtx_lv_lf, text=f"Level {i}",
+                             command=lambda val=i: self.send_command(f"P {val}"))
+            btn.pack(side=tk.LEFT, expand=True)
+
+        # Custom Power Entry
+        custom_p_frame = ttk.Frame(vtx_side_frame, padding="5")
+        custom_p_frame.pack(fill=tk.X)
+        self.custom_p_var = tk.StringVar(value="800")
+        ttk.Entry(custom_p_frame, textvariable=self.custom_p_var, width=8).pack(side=tk.LEFT)
+        ttk.Button(custom_p_frame, text="Send custom mW",
+                   command=lambda: self.send_command(f"P {self.custom_p_var.get()}")).pack(side=tk.LEFT, padx=5)
 
         # Servo Control (360 Degree)
         servo_lf = ttk.LabelFrame(vtx_side_frame, text="Servo Control (360°)", padding="5")
