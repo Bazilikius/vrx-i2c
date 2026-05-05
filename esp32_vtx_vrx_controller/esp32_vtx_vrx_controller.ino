@@ -7,6 +7,12 @@
 #define VTX_TX_PIN 23
 #define VTX_RX_PIN 34 // Use 34 (input-only, safe for dummy RX)
 
+// LoRa Configuration (E32)
+#define LORA_SERIAL Serial2
+#define LORA_RX_PIN 16
+#define LORA_TX_PIN 17
+#define LORA_BAUD 9600
+
 // Default I2C configuration
 int i2c_sda_pin = 21;
 int i2c_scl_pin = 22;
@@ -36,6 +42,18 @@ const int debounce_ms = 300;
 // User provided: 8 bit - 0xD0, 7 bit - 0x68
 uint8_t vrx_i2c_addr = 0x68;
 
+void sendFeedback(const char* format, ...) {
+  char buffer[128];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  va_end(args);
+
+  // Send to both USB and LoRa
+  Serial.print(buffer);
+  LORA_SERIAL.print(buffer);
+}
+
 // IRC Tramp packet structure
 void sendTrampPacket(char cmd, uint16_t value) {
   uint8_t packet[16];
@@ -64,7 +82,6 @@ void sendTrampPacket(char cmd, uint16_t value) {
 }
 
 void setVtxFrequency(uint16_t freq) {
-  // Use uppercase 'F' as seen in the RandyReover/VTXControl repo
   for (int i = 0; i < 3; i++) {
     sendTrampPacket('F', freq);
     delay(50);
@@ -72,7 +89,6 @@ void setVtxFrequency(uint16_t freq) {
 }
 
 void setVtxPower(uint16_t power) {
-  // Use uppercase 'P' as seen in the RandyReover/VTXControl repo
   for (int i = 0; i < 3; i++) {
     sendTrampPacket('P', power);
     delay(50);
@@ -94,24 +110,26 @@ void requestVtxConfig() {
     VTX_SERIAL.readBytes(buffer, 16);
 
     // Simple report to PC
-    Serial.print("VTX_INFO: ");
-    for(int i=0; i<16; i++) Serial.printf("%02X ", buffer[i]);
-    Serial.println();
+    sendFeedback("VTX_INFO: ");
+    for(int i=0; i<16; i++) {
+        char hex_buf[4];
+        sprintf(hex_buf, "%02X ", buffer[i]);
+        sendFeedback(hex_buf);
+    }
+    sendFeedback("\n");
 
     // Parse if it looks like a valid Tramp response (Sync 0x0F)
     if (buffer[0] == 0x0F) {
        uint16_t f = buffer[2] | (buffer[3] << 8);
        uint16_t p = buffer[4] | (buffer[5] << 8);
-       Serial.printf("VTX_STATUS: Freq=%d, Pwr=%d\n", f, p);
+       sendFeedback("VTX_STATUS: Freq=%d, Pwr=%d\n", f, p);
     }
   } else {
-    Serial.println("VTX_INFO: No response");
+    sendFeedback("VTX_INFO: No response\n");
   }
 }
 
 void setVrxFrequency(uint16_t freq) {
-  // According to the table, the frequency is sent as a 16-bit little-endian value.
-  // Example: 5865 (0x16E9) -> [0xE9, 0x16]
   uint8_t lowByte = freq & 0xFF;
   uint8_t highByte = (freq >> 8) & 0xFF;
 
@@ -121,9 +139,9 @@ void setVrxFrequency(uint16_t freq) {
   byte error = Wire.endTransmission();
 
   if (error == 0) {
-    Serial.printf("VRX: Set to %d MHz (0x%02X 0x%02X)\n", freq, lowByte, highByte);
+    sendFeedback("VRX: Set to %d MHz (0x%02X 0x%02X)\n", freq, lowByte, highByte);
   } else {
-    Serial.printf("VRX: Error sending to I2C address 0x%02X (Error: %d)\n", vrx_i2c_addr, error);
+    sendFeedback("VRX: Error sending to I2C address 0x%02X (Error: %d)\n", vrx_i2c_addr, error);
   }
 }
 
@@ -158,7 +176,7 @@ void setServoAngle(int angle) {
   ledcWrite(servo_pin, duty);
 
   // Feedback for PC GUI
-  Serial.printf("A: %d\n", current_servo_angle);
+  sendFeedback("A: %d\n", current_servo_angle);
 }
 
 
@@ -194,8 +212,11 @@ void processKey(char key) {
 }
 
 void setup() {
-  // USB Serial for PC communication
+  // USB Serial for local debug
   Serial.begin(115200);
+
+  // LoRa Serial for remote PC control
+  LORA_SERIAL.begin(LORA_BAUD, SERIAL_8N1, LORA_RX_PIN, LORA_TX_PIN);
 
   // VTX Serial
   VTX_SERIAL.begin(9600, SERIAL_8N1, VTX_RX_PIN, VTX_TX_PIN);
@@ -232,11 +253,7 @@ void setup() {
   Serial.println("  S            - Scan I2C bus");
 }
 
-void loop() {
-  checkKeypad();
-
-  if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');
+void handleCommand(String input) {
     input.trim();
     if (input.length() == 0) return;
 
@@ -248,38 +265,38 @@ void loop() {
       uint16_t freq = arg.toInt();
       if (freq > 0) {
         setVtxFrequency(freq);
-        Serial.printf("Set VTX Frequency: %d MHz\n", freq);
+        sendFeedback("Set VTX Frequency: %d MHz\n", freq);
       }
     } else if (cmd == 'B') {
       int baud = arg.toInt();
       if (baud == 4800 || baud == 9600) {
         VTX_SERIAL.end();
         VTX_SERIAL.begin(baud, SERIAL_8N1, VTX_RX_PIN, VTX_TX_PIN);
-        Serial.printf("VTX Baud set to %d\n", baud);
+        sendFeedback("VTX Baud set to %d\n", baud);
       }
     } else if (cmd == 'R') {
       uint16_t freq = arg.toInt();
       if (freq > 0) {
         setVrxFrequency(freq);
-        Serial.printf("Set VRX Frequency: %d MHz\n", freq);
+        sendFeedback("Set VRX Frequency: %d MHz\n", freq);
       }
     } else if (cmd == 'F') {
       uint16_t freq = arg.toInt();
       if (freq > 0) {
         setVtxFrequency(freq);
         setVrxFrequency(freq);
-        Serial.printf("Set BOTH Frequency: %d MHz\n", freq);
+        sendFeedback("Set BOTH Frequency: %d MHz\n", freq);
       }
     } else if (cmd == 'P') {
       uint16_t power = arg.toInt();
       setVtxPower(power);
-      Serial.printf("Set VTX Power: %d mW\n", power);
+      sendFeedback("Set VTX Power: %d mW\n", power);
     } else if (cmd == 'A') {
       // Hex address expected, e.g., "A 54"
       uint8_t addr = (uint8_t) strtol(arg.c_str(), NULL, 16);
       if (addr > 0) {
         vrx_i2c_addr = addr;
-        Serial.printf("VRX I2C address set to 0x%02X\n", vrx_i2c_addr);
+        sendFeedback("VRX I2C address set to 0x%02X\n", vrx_i2c_addr);
       }
     } else if (cmd == 'I') {
       int firstSpace = arg.indexOf(' ');
@@ -290,7 +307,7 @@ void loop() {
         i2c_scl_pin = scl;
         Wire.end();
         Wire.begin(i2c_sda_pin, i2c_scl_pin);
-        Serial.printf("I2C pins set to SDA:%d, SCL:%d\n", i2c_sda_pin, i2c_scl_pin);
+        sendFeedback("I2C pins set to SDA:%d, SCL:%d\n", i2c_sda_pin, i2c_scl_pin);
       }
     } else if (cmd == 'X') {
       int angle = arg.toInt();
@@ -301,18 +318,33 @@ void loop() {
         ledcDetach(servo_pin);
         servo_pin = pin;
         ledcAttach(servo_pin, servo_freq, 13);
-        Serial.printf("Servo pin set to %d\n", servo_pin);
+        sendFeedback("Servo pin set to %d\n", servo_pin);
       }
     } else if (cmd == 'M') {
       int state = arg.toInt();
       digitalWrite(mosfet_pin, state == 1 ? HIGH : LOW);
-      Serial.printf("System Power: %s\n", state == 1 ? "ON" : "OFF");
+      sendFeedback("System Power: %s\n", state == 1 ? "ON" : "OFF");
     } else if (cmd == 'S') {
       scanI2C();
     } else if (cmd == 'Q') {
       requestVtxConfig();
     } else {
-      Serial.println("Unknown command.");
+      sendFeedback("Unknown command.\n");
     }
+}
+
+void loop() {
+  checkKeypad();
+
+  // Handle local USB commands
+  if (Serial.available() > 0) {
+    String input = Serial.readStringUntil('\n');
+    handleCommand(input);
+  }
+
+  // Handle remote LoRa commands
+  if (LORA_SERIAL.available() > 0) {
+    String input = LORA_SERIAL.readStringUntil('\n');
+    handleCommand(input);
   }
 }

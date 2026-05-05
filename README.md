@@ -1,12 +1,26 @@
-# VTX/VRX Controller for ESP32
+# VTX/VRX Controller for ESP32 with LoRa Telemetry
 
-This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and Video Receiver (VRX) from a PC using an ESP32.
+This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and Video Receiver (VRX) from a PC using a pair of ESP32s and Ebyte E32 LoRa modules for long-range remote operation.
 
 - **VTX:** Rush 1.2/1.3GHz 1.6W (IRC Tramp protocol)
 - **VRX:** Controlled via I2C (16-bit little-endian frequency mapping)
 - **Servo:** Digital Servo control (PWM 50Hz, 270° range)
 - **Feedback:** 4x4 Keypad support (Rows: 32, 33, 25, 26; Cols: 27, 14, 15, 5)
 - **Power:** MOSFET System Power control
+- **Remote:** Long-range transparent bridge via E32 LoRa modules (9600 baud)
+
+## LoRa Architecture
+
+The system consists of two ESP32 nodes:
+
+1.  **Base Node (PC Transmitter):**
+    - Connects to the PC via USB.
+    - Runs `esp32_lora_bridge/esp32_lora_bridge.ino`.
+    - Acts as a transparent gateway between the PC GUI and the LoRa network.
+2.  **Remote Node (Hardware Controller):**
+    - Connected to the VTX, VRX, and Servo.
+    - Runs `esp32_vtx_vrx_controller/esp32_vtx_vrx_controller.ino`.
+    - Receives commands over LoRa and sends telemetry back to the Base Node.
 
 ## Hardware Connections
 
@@ -33,7 +47,13 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 ### ESP32 to MOSFET
 - **MOSFET Gate** -> ESP32 **GPIO 4** (HIGH = ON, LOW = OFF)
 
-### Full Pinout Table
+### ESP32 to LoRa (E32 Module) - Both Nodes
+- **LoRa RX** -> ESP32 **GPIO 17 (TX2)**
+- **LoRa TX** -> ESP32 **GPIO 16 (RX2)**
+- **M0 / M1** -> GND (for Transparent Mode)
+- **VCC / GND** -> 3.3V / GND (Ensure adequate power for LoRa transmission)
+
+### Full Pinout Table (Remote Node)
 
 | Peripheral | ESP32 Pin | Function |
 |------------|-----------|----------|
@@ -44,6 +64,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 | **MOSFET Relay** | GPIO 4 | Power Control (Main System) |
 | **Keypad Rows** | 32, 33, 25, 26 | Matrix Scanning |
 | **Keypad Cols** | 27, 14, 15, 5 | Matrix Scanning |
+| **LoRa (E32)** | GPIO 16, 17 | Serial2 (9600 Baud) |
 
 ## MOSFET Relay Setup
 The MOSFET relay on **GPIO 4** is used as a master power switch for the VTX and VRX peripherals.
