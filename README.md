@@ -4,7 +4,7 @@ This project allows you to control a 1.2Ghz/1.3GHz Video Transmitter (VTX) and V
 
 - **VTX:** Rush 1.2/1.3GHz 1.6W (IRC Tramp protocol)
 - **VRX:** Controlled via I2C (16-bit little-endian frequency mapping)
-- **Servo:** Digital Servo control (PWM 50Hz, 270° range)
+- **Servo:** Digital Servo control (PWM 50Hz, 360° range)
 - **Feedback:** 4x4 Keypad support (Rows: 32, 33, 25, 26; Cols: 27, 14, 15, 5)
 - **Power:** MOSFET System Power control
 - **Remote:** Long-range transparent bridge via E32 LoRa modules (9600 baud)
@@ -107,8 +107,8 @@ The graphical interface provides a convenient button-based control system:
 - **Left / Right Arrows**: Servo -5° / +5°
 - **Numpad 8 / 2**: Servo +5° / -5°
 - **Numpad 6 / 4**: Servo +20° / -20°
-- **Numpad 5**: Center Servo (135°)
-- **Numpad * / /**: Set Servo to 0° / 270°
+- **Numpad 5**: Center Servo (180°)
+- **Numpad * / /**: Set Servo to 0° / 360°
 
 ```bash
 python3 vtx_vrx_gui.py
@@ -122,7 +122,8 @@ python3 vtx_vrx_gui.py
 - **Satellite Map Tab**:
     - **Hybrid Map**: View a satellite map with city names and road labels (Google Hybrid).
     - **Marker Placement**: Right-click on the map or enter coordinates to set the system location marker.
-    - **Range Circle**: A red 15km radius circle is automatically drawn around the marker for distance reference.
+    - **Tactical Overlay**: Concentric 5/10/15km white rings and 30° azimuth radials are drawn around the marker.
+    - **Servo Needle**: A red needle shows the current 360° servo orientation on the map.
     - **Quick Favorites**: Access your favorite frequencies directly from the map sidebar.
 - **Favorites System**:
     - **Add Favorites**: Right-click any frequency button in the Hardware Controls tab to add it to your favorites.
@@ -134,8 +135,7 @@ python3 vtx_vrx_gui.py
 - `--band`: Band name (e.g., "Band A", "Band R").
 - `--chan`: Channel number (1-8).
 - `--power`: VTX output power in mW (e.g., 25, 200, 1600).
-- `--servo`: Set Digital Servo angle (0-270).
-- `--home`: Execute Servo Homing sequence (Calibration).
+- `--servo`: Set Digital Servo angle (0-360).
 - `--mosfet`: Set MOSFET Power (0=OFF, 1=ON).
 - `--addr`: (Optional) Change the VRX I2C address (hex, default: `68`).
 - `--scan`: (Optional) Scan the I2C bus to find the VRX address.

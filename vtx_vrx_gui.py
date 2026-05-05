@@ -253,14 +253,14 @@ class VTXControllerGUI:
 
         self.update_favorites_display()
 
-        # Bind keyboard numpad and arrows for servo control
+        # Bind keyboard numpad and arrows for servo control (360° range)
         self.root.bind("<KP_8>", lambda e: self.adjust_servo(5))
         self.root.bind("<KP_2>", lambda e: self.adjust_servo(-5))
         self.root.bind("<KP_6>", lambda e: self.adjust_servo(20))
         self.root.bind("<KP_4>", lambda e: self.adjust_servo(-20))
-        self.root.bind("<KP_5>", lambda e: self.set_servo_preset(135))
-        self.root.bind("<KP_Multiply>", lambda e: self.set_servo_preset(0))
-        self.root.bind("<KP_Divide>", lambda e: self.set_servo_preset(270))
+        self.root.bind("<KP_5>", lambda e: self.set_servo_preset(180)) # Center
+        self.root.bind("<KP_Multiply>", lambda e: self.set_servo_preset(0)) # Min
+        self.root.bind("<KP_Divide>", lambda e: self.set_servo_preset(360)) # Max
 
         self.root.bind("<Left>", lambda e: self.adjust_servo(-5))
         self.root.bind("<Right>", lambda e: self.adjust_servo(5))
