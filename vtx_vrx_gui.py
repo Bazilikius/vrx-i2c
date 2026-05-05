@@ -556,20 +556,31 @@ class VTXControllerGUI:
 
     def read_serial(self):
         while self.ser and self.ser.is_open:
-            if self.ser.in_waiting:
-                line = self.ser.readline().decode('utf-8', errors='replace').strip()
-                if line:
-                    self.root.after(0, self.log, line)
-                    # Parse feedback A: <angle>
-                    if line.startswith("A:"):
-                        try:
-                            angle = int(line.split(":")[1].strip())
-                            self.root.after(0, self.update_gui_servo, angle)
-                        except: pass
-                    # Parse VTX Telemetry
-                    elif line.startswith("VTX_STATUS:"):
-                        self.root.after(0, lambda l=line: self.vtx_status_lbl.config(text=l.replace("VTX_STATUS:", "VTX:")))
+            try:
+                if self.ser.in_waiting:
+                    line = self.ser.readline().decode('utf-8', errors='replace').strip()
+                    if line:
+                        self.root.after(0, self.log, line)
+                        # Parse feedback A: <angle>
+                        if line.startswith("A:"):
+                            try:
+                                angle = int(line.split(":")[1].strip())
+                                self.root.after(0, self.update_gui_servo, angle)
+                            except: pass
+                        # Parse VTX Telemetry
+                        elif line.startswith("VTX_STATUS:"):
+                            self.root.after(0, lambda l=line: self.vtx_status_lbl.config(text=l.replace("VTX_STATUS:", "VTX:")))
+            except (serial.SerialException, OSError) as e:
+                self.root.after(0, self.log, f"Connection lost: {e}")
+                self.root.after(0, self.handle_disconnect)
+                break
             time.sleep(0.01)
+
+    def handle_disconnect(self):
+        if self.ser and self.ser.is_open:
+            self.ser.close()
+        self.connect_btn.config(text="Connect")
+        self.status_var.set("Disconnected")
 
     def update_gui_servo(self, angle):
         self.servo_var.set(angle)
