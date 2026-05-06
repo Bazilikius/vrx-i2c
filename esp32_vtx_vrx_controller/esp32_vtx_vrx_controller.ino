@@ -1,4 +1,8 @@
 #include <Wire.h>
+#include <Preferences.h>
+
+// Persistent Storage
+Preferences prefs;
 
 // Pin definitions for ESP32
 // VTX IRC Tramp / SmartAudio uses a single wire, connect to TX pin.
@@ -238,6 +242,19 @@ void setup() {
     pinMode(COL_PINS[i], INPUT_PULLUP);
   }
 
+  // Load Saved Settings
+  prefs.begin("vtxvrx", false);
+  uint16_t saved_vtx_f = prefs.getUInt("vtx_f", 1200);
+  uint16_t saved_vrx_f = prefs.getUInt("vrx_f", 5865);
+  uint16_t saved_vtx_p = prefs.getUInt("vtx_p", 25);
+  int saved_servo_a = prefs.getInt("servo_a", 180);
+
+  // Apply Saved Settings
+  setVtxFrequency(saved_vtx_f);
+  setVrxFrequency(saved_vrx_f);
+  setVtxPower(saved_vtx_p);
+  setServoAngle(saved_servo_a);
+
   Serial.println("ESP32 VTX/VRX/Servo/Keypad Controller Initialized");
   Serial.println("Commands:");
   Serial.println("  V <freq_mhz> - Set ONLY VTX frequency");
@@ -265,6 +282,7 @@ void handleCommand(String input) {
       uint16_t freq = arg.toInt();
       if (freq > 0) {
         setVtxFrequency(freq);
+        prefs.putUInt("vtx_f", freq);
         sendFeedback("Set VTX Frequency: %d MHz\n", freq);
       }
     } else if (cmd == 'B') {
@@ -278,6 +296,7 @@ void handleCommand(String input) {
       uint16_t freq = arg.toInt();
       if (freq > 0) {
         setVrxFrequency(freq);
+        prefs.putUInt("vrx_f", freq);
         sendFeedback("Set VRX Frequency: %d MHz\n", freq);
       }
     } else if (cmd == 'F') {
@@ -285,11 +304,14 @@ void handleCommand(String input) {
       if (freq > 0) {
         setVtxFrequency(freq);
         setVrxFrequency(freq);
+        prefs.putUInt("vtx_f", freq);
+        prefs.putUInt("vrx_f", freq);
         sendFeedback("Set BOTH Frequency: %d MHz\n", freq);
       }
     } else if (cmd == 'P') {
       uint16_t power = arg.toInt();
       setVtxPower(power);
+      prefs.putUInt("vtx_p", power);
       sendFeedback("Set VTX Power: %d mW\n", power);
     } else if (cmd == 'A') {
       // Hex address expected, e.g., "A 54"
@@ -312,6 +334,7 @@ void handleCommand(String input) {
     } else if (cmd == 'X') {
       int angle = arg.toInt();
       setServoAngle(angle);
+      prefs.putInt("servo_a", angle);
     } else if (cmd == 'J') {
       int pin = arg.toInt();
       if (pin >= 0) {

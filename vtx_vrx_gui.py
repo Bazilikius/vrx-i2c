@@ -22,6 +22,8 @@ class VTXControllerGUI:
         self.azimuth_labels = []
         self.favorites_file = "favorites.json"
         self.favorites = self.load_favorites()
+        self.config_file = "config.json"
+        self.config = self.load_config()
         self.fav_vtx_buttons = []
         self.fav_vrx_buttons = []
 
@@ -34,7 +36,7 @@ class VTXControllerGUI:
         conn_frame.grid(row=0, column=0, sticky=(tk.W, tk.E))
 
         ttk.Label(conn_frame, text="Port:").pack(side=tk.LEFT)
-        self.port_var = tk.StringVar()
+        self.port_var = tk.StringVar(value=self.config.get("port", ""))
         self.port_combo = ttk.Combobox(conn_frame, textvariable=self.port_var, width=15)
         self.port_combo['values'] = [port.device for port in serial.tools.list_ports.comports()]
         self.port_combo.pack(side=tk.LEFT, padx=5)
@@ -157,7 +159,7 @@ class VTXControllerGUI:
         az_frame = ttk.Frame(vtx_side_frame)
         az_frame.pack(fill=tk.X, pady=5)
         ttk.Label(az_frame, text="Ref Azimuth:").pack(side=tk.LEFT)
-        self.ref_az_var = tk.IntVar(value=0)
+        self.ref_az_var = tk.IntVar(value=self.config.get("ref_az", 0))
         # Update map when Reference Azimuth changes
         self.ref_az_var.trace_add("write", lambda *args: self.refresh_map_overlay())
         ttk.Entry(az_frame, textvariable=self.ref_az_var, width=5).pack(side=tk.LEFT, padx=5)
@@ -224,11 +226,11 @@ class VTXControllerGUI:
         map_controls.pack(fill=tk.X)
 
         ttk.Label(map_controls, text="Lat:").pack(side=tk.LEFT)
-        self.lat_var = tk.StringVar(value="50.4501")
+        self.lat_var = tk.StringVar(value=self.config.get("lat", "50.4501"))
         ttk.Entry(map_controls, textvariable=self.lat_var, width=12).pack(side=tk.LEFT, padx=5)
 
         ttk.Label(map_controls, text="Lon:").pack(side=tk.LEFT)
-        self.lon_var = tk.StringVar(value="30.5234")
+        self.lon_var = tk.StringVar(value=self.config.get("lon", "30.5234"))
         ttk.Entry(map_controls, textvariable=self.lon_var, width=12).pack(side=tk.LEFT, padx=5)
 
         ttk.Button(map_controls, text="Update/Refresh Map", command=self.update_map_marker).pack(side=tk.LEFT, padx=5)
@@ -294,7 +296,7 @@ class VTXControllerGUI:
 
         adv_frame = ttk.LabelFrame(bottom_frame, text="I2C/Config", padding="5")
         adv_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=5)
-        self.addr_var = tk.StringVar(value="68")
+        self.addr_var = tk.StringVar(value=self.config.get("vrx_addr", "68"))
         ttk.Entry(adv_frame, textvariable=self.addr_var, width=4).grid(row=0, column=0)
         ttk.Button(adv_frame, text="Addr", command=self.set_address).grid(row=0, column=1)
         ttk.Button(adv_frame, text="Scan", command=self.scan_i2c).grid(row=1, column=0, columnspan=2, pady=2)
@@ -315,6 +317,7 @@ class VTXControllerGUI:
     def on_map_interaction(self, event=None):
         # Schedule redraw if zoom changed
         self.root.after(200, self.check_zoom_and_redraw)
+        self.save_config()
 
     def check_zoom_and_redraw(self):
         current_zoom = self.map_widget.zoom
@@ -335,6 +338,7 @@ class VTXControllerGUI:
         self.lat_var.set(f"{coords[0]:.6f}")
         self.lon_var.set(f"{coords[1]:.6f}")
         self.update_map_marker()
+        self.save_config()
 
     def update_map_marker(self):
         try:
@@ -499,6 +503,27 @@ class VTXControllerGUI:
             json.dump(self.favorites, f)
         self.update_favorites_display()
 
+    def load_config(self):
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r') as f:
+                    return json.load(f)
+            except: pass
+        return {}
+
+    def save_config(self):
+        try:
+            cfg = {
+                "port": self.port_var.get(),
+                "lat": self.lat_var.get(),
+                "lon": self.lon_var.get(),
+                "ref_az": self.ref_az_var.get(),
+                "vrx_addr": self.addr_var.get()
+            }
+            with open(self.config_file, 'w') as f:
+                json.dump(cfg, f)
+        except: pass
+
     def update_favorites_display(self):
         for btn in self.fav_vtx_buttons: btn.destroy()
         for btn in self.fav_vrx_buttons: btn.destroy()
@@ -550,6 +575,7 @@ class VTXControllerGUI:
                 self.connect_btn.config(text="Disconnect")
                 self.status_var.set("Connected")
                 self.log("Connected to " + port)
+                self.save_config()
                 threading.Thread(target=self.read_serial, daemon=True).start()
             except Exception as e:
                 messagebox.showerror("Error", str(e))
@@ -623,7 +649,9 @@ class VTXControllerGUI:
     def update_servo(self, val):
         try:
             angle = int(float(val))
-            try: ref_az = self.ref_az_var.get()
+            try:
+                ref_az = self.ref_az_var.get()
+                self.save_config()
             except: ref_az = 0
             actual_az = (ref_az + angle) % 360
             self.servo_val_lbl.config(text=f"{actual_az}° (Rel: {angle}°)")
