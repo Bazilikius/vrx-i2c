@@ -137,6 +137,12 @@ void setVrxFrequency(uint16_t freq) {
   uint8_t lowByte = freq & 0xFF;
   uint8_t highByte = (freq >> 8) & 0xFF;
 
+  // Attempt to recover I2C bus if it's stuck
+  if (digitalRead(i2c_sda_pin) == LOW || digitalRead(i2c_scl_pin) == LOW) {
+    Wire.end();
+    Wire.begin(i2c_sda_pin, i2c_scl_pin, 100000);
+  }
+
   Wire.beginTransmission(vrx_i2c_addr);
   Wire.write(lowByte);
   Wire.write(highByte);
@@ -145,7 +151,20 @@ void setVrxFrequency(uint16_t freq) {
   if (error == 0) {
     sendFeedback("VRX: Set to %d MHz (0x%02X 0x%02X)\n", freq, lowByte, highByte);
   } else {
-    sendFeedback("VRX: Error sending to I2C address 0x%02X (Error: %d)\n", vrx_i2c_addr, error);
+    // Retry once on error 4
+    if (error == 4) {
+       delay(10);
+       Wire.beginTransmission(vrx_i2c_addr);
+       Wire.write(lowByte);
+       Wire.write(highByte);
+       error = Wire.endTransmission();
+    }
+
+    if (error == 0) {
+      sendFeedback("VRX: Set to %d MHz (Success after retry)\n", freq);
+    } else {
+      sendFeedback("VRX: Error sending to I2C address 0x%02X (Error: %d)\n", vrx_i2c_addr, error);
+    }
   }
 }
 
@@ -225,8 +244,9 @@ void setup() {
   // VTX Serial
   VTX_SERIAL.begin(9600, SERIAL_8N1, VTX_RX_PIN, VTX_TX_PIN);
 
-  // I2C for VRX
-  Wire.begin(i2c_sda_pin, i2c_scl_pin);
+  // I2C for VRX (100kHz for stability)
+  Wire.begin(i2c_sda_pin, i2c_scl_pin, 100000);
+  Wire.setTimeOut(100); // 100ms timeout
 
   // Servo Setup
   ledcAttach(servo_pin, servo_freq, 13);
