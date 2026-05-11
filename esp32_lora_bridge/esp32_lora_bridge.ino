@@ -20,10 +20,16 @@ void setup() {
 }
 
 void loop() {
-  // Forward data from PC to LoRa
+  // Check for Local Diagnostic commands
   if (Serial.available()) {
-    while (Serial.available()) {
-      LORA_SERIAL.write(Serial.read());
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+
+    if (input == "Z") {
+      Serial.println("PONG: BASE OK");
+    } else {
+      // Forward everything else to LoRa
+      LORA_SERIAL.println(input);
     }
   }
 

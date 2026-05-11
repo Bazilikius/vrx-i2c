@@ -288,6 +288,7 @@ void setup() {
   Serial.println("  I <sda> <scl>- Set I2C pins");
   Serial.println("  J <pin>      - Set Servo pin");
   Serial.println("  S            - Scan I2C bus");
+  Serial.println("  G            - Ping Remote Node");
 }
 
 void handleCommand(String input) {
@@ -303,7 +304,7 @@ void handleCommand(String input) {
       if (freq > 0) {
         setVtxFrequency(freq);
         prefs.putUInt("vtx_f", freq);
-        sendFeedback("Set VTX Frequency: %d MHz\n", freq);
+        sendFeedback("Set VTX Frequency: %d MHz\nOK\n", freq);
       }
     } else if (cmd == 'B') {
       int baud = arg.toInt();
@@ -317,7 +318,7 @@ void handleCommand(String input) {
       if (freq > 0) {
         setVrxFrequency(freq);
         prefs.putUInt("vrx_f", freq);
-        sendFeedback("Set VRX Frequency: %d MHz\n", freq);
+        sendFeedback("Set VRX Frequency: %d MHz\nOK\n", freq);
       }
     } else if (cmd == 'F') {
       uint16_t freq = arg.toInt();
@@ -326,13 +327,13 @@ void handleCommand(String input) {
         setVrxFrequency(freq);
         prefs.putUInt("vtx_f", freq);
         prefs.putUInt("vrx_f", freq);
-        sendFeedback("Set BOTH Frequency: %d MHz\n", freq);
+        sendFeedback("Set BOTH Frequency: %d MHz\nOK\n", freq);
       }
     } else if (cmd == 'P') {
       uint16_t power = arg.toInt();
       setVtxPower(power);
       prefs.putUInt("vtx_p", power);
-      sendFeedback("Set VTX Power: %d mW\n", power);
+      sendFeedback("Set VTX Power: %d mW\nOK\n", power);
     } else if (cmd == 'A') {
       // Hex address expected, e.g., "A 54"
       uint8_t addr = (uint8_t) strtol(arg.c_str(), NULL, 16);
@@ -355,6 +356,7 @@ void handleCommand(String input) {
       int angle = arg.toInt();
       setServoAngle(angle);
       prefs.putInt("servo_a", angle);
+      sendFeedback("OK\n");
     } else if (cmd == 'J') {
       int pin = arg.toInt();
       if (pin >= 0) {
@@ -366,11 +368,15 @@ void handleCommand(String input) {
     } else if (cmd == 'M') {
       int state = arg.toInt();
       digitalWrite(mosfet_pin, state == 1 ? HIGH : LOW);
-      sendFeedback("System Power: %s\n", state == 1 ? "ON" : "OFF");
+      sendFeedback("System Power: %s\nOK\n", state == 1 ? "ON" : "OFF");
     } else if (cmd == 'S') {
       scanI2C();
+      sendFeedback("OK\n");
     } else if (cmd == 'Q') {
       requestVtxConfig();
+      sendFeedback("OK\n");
+    } else if (cmd == 'G') {
+      sendFeedback("PONG: REMOTE OK\n");
     } else {
       sendFeedback("Unknown command.\n");
     }

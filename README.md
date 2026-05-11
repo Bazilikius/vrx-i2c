@@ -184,6 +184,9 @@ If your VTX does not respond to commands:
 4. **Logic Levels**: The ESP32 uses 3.3V logic. If your VTX strictly requires 5V logic for data, a logic level shifter may be needed (though 3.3V works for most Rush VTXs).
 5. **Debug Console**: Watch the GUI console. It will show the exact HEX bytes being sent to the VTX.
 6. **Bidirectional Support**: The system now supports VTX telemetry. Use the "Request VTX Info" button in the GUI to verify if the VTX is communicating back to the ESP32.
+7. **LoRa Link Diagnostics**: Use the "📡 Ping Link" button in the GUI to verify the connection.
+   - **Link: Base OK**: The PC can talk to the local USB bridge.
+   - **Link: REMOTE OK**: The LoRa wireless link to the antenna controller is active.
 
 ## Troubleshooting I2C
 

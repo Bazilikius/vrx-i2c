@@ -57,6 +57,11 @@ class VTXControllerGUI:
         self.pwr_status_lbl.pack(side=tk.RIGHT, padx=5)
         ttk.Label(conn_frame, text="Status:").pack(side=tk.RIGHT)
 
+        # Link Diagnostics
+        ttk.Button(conn_frame, text="📡 Ping Link", command=self.ping_system).pack(side=tk.RIGHT, padx=10)
+        self.link_status_var = tk.StringVar(value="Link: ???")
+        ttk.Label(conn_frame, textvariable=self.link_status_var, foreground="purple").pack(side=tk.RIGHT)
+
         # 2. Tabs
         self.notebook = ttk.Notebook(root)
         self.notebook.grid(row=1, column=0, sticky=(tk.N, tk.S, tk.E, tk.W))
@@ -593,6 +598,11 @@ class VTXControllerGUI:
                                 angle = int(line.split(":")[1].strip())
                                 self.root.after(0, self.update_gui_servo, angle)
                             except: pass
+                        # Link Diagnostics
+                        elif "PONG: BASE OK" in line:
+                            self.root.after(0, lambda: self.link_status_var.set("Link: Base OK"))
+                        elif "PONG: REMOTE OK" in line:
+                            self.root.after(0, lambda: self.link_status_var.set("Link: REMOTE OK"))
                         # Parse VTX Telemetry
                         elif line.startswith("VTX_STATUS:"):
                             self.root.after(0, lambda l=line: self.vtx_status_lbl.config(text=l.replace("VTX_STATUS:", "VTX:")))
@@ -625,6 +635,13 @@ class VTXControllerGUI:
             lon = float(lon_str)
             self.draw_enhanced_range_graphics(lat, lon)
         except: pass
+
+    def ping_system(self):
+        self.link_status_var.set("Link: Waiting...")
+        # Ping local bridge
+        self.send_command("Z")
+        # Ping remote controller via LoRa
+        self.root.after(500, lambda: self.send_command("G"))
 
     def send_command(self, cmd):
         if cmd.startswith("M "):
