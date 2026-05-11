@@ -114,6 +114,20 @@ The graphical interface provides a convenient button-based control system:
 python3 vtx_vrx_gui.py
 ```
 
+### Building the Standalone Executable (.exe)
+
+You can generate a single-file executable for Windows that does not require Python to be installed on the target machine:
+
+1. Install build dependencies:
+   ```bash
+   pip install pyinstaller pillow
+   ```
+2. Run the build script:
+   ```bash
+   python3 build_exe.py
+   ```
+3. Find your executable (`VTX_VRX_Pro_Controller.exe`) in the **`dist/`** folder.
+
 **GUI Layout:**
 - **Hardware Controls Tab**:
     - **VTX Column**: One-click buttons for standard 1.2GHz frequencies.

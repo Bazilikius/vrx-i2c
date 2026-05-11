@@ -1,2 +1,4 @@
 pyserial
 tkintermapview
+pyinstaller
+pillow
